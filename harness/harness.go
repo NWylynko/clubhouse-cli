@@ -282,9 +282,10 @@ func (c *Client) agentArgs(prompt string) ([]string, error) {
 		// final result frame, which is the same silence as `--output-format text`.
 		args = []string{"-p", "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions"}
 	case Codex:
-		// exec = non-interactive; --full-auto = write + run without approvals.
+		// Explicit permissions survive removal of the --full-auto shortcut.
+		// The setup clone is writable; a headless run cannot answer approvals.
 		// It already streams plain text, so there is no format to ask for.
-		args = []string{"exec", "--full-auto", "--skip-git-repo-check"}
+		args = []string{"exec", "--sandbox", "workspace-write", "-c", `approval_policy="never"`, "--skip-git-repo-check"}
 	case Cursor:
 		// Deliberately NOT `--mode ask`: that is cursor's read-only mode, which
 		// is what the text path uses. --force bypasses the approval prompts a
