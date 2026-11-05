@@ -104,7 +104,7 @@ const (
 
 	// HeldConnectionGlobalMax covers redeem holds and session SSE streams
 	// together — the same goroutine/row cost from the machine's point of view.
-	// Default when SLOPBALL_BUDGET_CEILING is unset (= BudgetDefaultHeldConnections).
+	// Default when CLUB_BUDGET_CEILING is unset (= BudgetDefaultHeldConnections).
 	// When the ceiling is set: ceiling × HeldConnectionsPerBoxSlot (budget.go).
 	HeldConnectionGlobalMax = BudgetDefaultHeldConnections
 
@@ -149,7 +149,7 @@ const (
 
 	// Box request bounds (abuse-surface ticket 13). BoxConcurrentGlobal is the
 	// first consumer of the budget ceiling (ticket 24): when
-	// SLOPBALL_BUDGET_CEILING is set it equals that number; when unset it is
+	// CLUB_BUDGET_CEILING is set it equals that number; when unset it is
 	// BudgetDefaultBoxConcurrent.
 	BoxPerSourcePerDay    = 10
 	BoxPerSessionLifetime = 3

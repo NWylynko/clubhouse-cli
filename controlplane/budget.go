@@ -18,7 +18,7 @@ const (
 	BudgetUnit = "concurrent boxes"
 
 	// BudgetEnv is the configuration key. Empty / unset is a boot refusal.
-	BudgetEnv = "SLOPBALL_BUDGET_CEILING"
+	BudgetEnv = "CLUB_BUDGET_CEILING"
 
 	// Historical defaults when a ceiling was unset — kept so ResolveBudget's
 	// unconfigured path and comments still name the same numbers. The shipped
@@ -36,7 +36,7 @@ type Budget struct {
 	// Ceiling is the configured concurrent-box limit. Zero with Unset true
 	// means "no ceiling configured" — not "zero boxes".
 	Ceiling int
-	// Unset is true when SLOPBALL_BUDGET_CEILING was absent or blank.
+	// Unset is true when CLUB_BUDGET_CEILING was absent or blank.
 	Unset bool
 	// BoxConcurrent is the global concurrent box provision ceiling.
 	BoxConcurrent int
@@ -65,7 +65,7 @@ func ResolveBudget(ceiling int, configured bool) (Budget, error) {
 	}, nil
 }
 
-// ParseBudgetEnv reads SLOPBALL_BUDGET_CEILING. Empty is a refusal — the
+// ParseBudgetEnv reads CLUB_BUDGET_CEILING. Empty is a refusal — the
 // control plane must state what it may spend (ticket 05).
 func ParseBudgetEnv(v string) (Budget, error) {
 	v = strings.TrimSpace(v)

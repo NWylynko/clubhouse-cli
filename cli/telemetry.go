@@ -5,10 +5,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nwylynko/slopball-cli/telemetry"
+	"github.com/nwylynko/clubhouse-cli/telemetry"
 )
 
-// `slopball telemetry on|off|status` is where a human decides whether THIS
+// `club telemetry on|off|status` is where a human decides whether THIS
 // MACHINE sends anything (plan 46 ticket 12).
 //
 // It is a per-machine setting, not a per-session one: it is a statement about

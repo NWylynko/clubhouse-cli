@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
 )
 
 // Result is the ranking for one service, best candidate first. An empty

@@ -1,6 +1,6 @@
 // Package devserver supervises the product's dev process on canonical main
 // (plans/05): start/stop, log capture, post-merge lockfile install, and the
-// `slopball run` passthrough.
+// `club run` passthrough.
 package devserver
 
 import (
@@ -18,18 +18,18 @@ import (
 	"time"
 )
 
-// Stream is which fd a line came from, or that slopball wrote it itself.
+// Stream is which fd a line came from, or that club wrote it itself.
 //
-// StreamSlopball exists because the host narrates its own failures into this
+// StreamClub exists because the host narrates its own failures into this
 // buffer (hoststart.writeDevLog) and one of those messages quotes Tail(20) back
 // into it. Merged, that is a feedback loop the moment detection is broadened
 // past a fixed substring list: the watcher reads its own trigger and re-fires.
 type Stream string
 
 const (
-	StreamStdout   Stream = "stdout"
-	StreamStderr   Stream = "stderr"
-	StreamSlopball Stream = "slopball"
+	StreamStdout Stream = "stdout"
+	StreamStderr Stream = "stderr"
+	StreamClub   Stream = "club"
 )
 
 // Phase separates dependency installation from the running dev server. npm puts
@@ -100,10 +100,10 @@ func (s *LogSubscriber) Close() {
 }
 
 // Write satisfies io.Writer for callers that hold the buffer directly. It tags
-// as slopball-authored: anything writing here is slopball itself, and the safe
+// as clubhouse-authored: anything writing here is club itself, and the safe
 // direction for an untagged write is the one the watcher ignores.
 func (l *LogBuffer) Write(p []byte) (int, error) {
-	l.write(tag{StreamSlopball, PhaseDev}, p)
+	l.write(tag{StreamClub, PhaseDev}, p)
 	return len(p), nil
 }
 
@@ -193,7 +193,7 @@ func (l *LogBuffer) Select(stream Stream, phase Phase) string {
 }
 
 // Watchable is the error-watcher's view: stderr the dev server itself wrote.
-// Install-phase output and slopball's own narration are excluded by
+// Install-phase output and club's own narration are excluded by
 // construction rather than by pattern-matching them back out.
 func (l *LogBuffer) Watchable() string { return l.Select(StreamStderr, PhaseDev) }
 
@@ -747,7 +747,7 @@ func exists(dir, name string) bool {
 }
 
 // Run executes an arbitrary command against workDir and streams output to out.
-// This is the `slopball run` passthrough (§5.7 #4).
+// This is the `club run` passthrough (§5.7 #4).
 func Run(ctx context.Context, workDir string, args []string, out io.Writer) error {
 	if len(args) == 0 {
 		return fmt.Errorf("run: no command")

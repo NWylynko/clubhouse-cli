@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 // Dialer is the client half of the session network. It dials the relay, never
@@ -48,7 +48,7 @@ type Dialer struct {
 var lastPath sync.Map // "pin/service" → "direct <addr>" | "relay <addr>"
 
 // LastPath reports how this process most recently reached a session service,
-// for `slopball monitor` and slopdebug. An unobservable dual path is the
+// for `club monitor` and clubdebug. An unobservable dual path is the
 // failure mode that wastes an hour on stage; one that announces itself is
 // diagnosable in seconds.
 func LastPath(pin, service string) string {
@@ -247,11 +247,11 @@ type ForwarderConfig struct {
 	Addr string
 	// LocalHost is the host:port to hand humans and tools, when it should differ
 	// from the primary listener's own address — the dev forwarder's
-	// <pin>.slopball.localhost:<port> name. Empty means the listener address.
+	// <pin>.club.localhost:<port> name. Empty means the listener address.
 	LocalHost string
 	// AlsoAddr are additional local bind addresses spliced onto the same
 	// service. The dev forwarder binds both loopbacks with it: a name like
-	// <pin>.slopball.localhost resolves ::1 FIRST on this machine, so a v4-only
+	// <pin>.club.localhost resolves ::1 FIRST on this machine, so a v4-only
 	// listener survives only on the client's retry after a refused connection.
 	AlsoAddr []string
 	// DialContext overrides how the underlying sockets are opened (tests).
@@ -261,9 +261,9 @@ type ForwarderConfig struct {
 }
 
 // Forwarder is what makes the session network need no TUN device and no root.
-// slopball owns git's `origin` URL and the browser's demo URL, so a loopback
+// club owns git's `origin` URL and the browser's demo URL, so a loopback
 // listener that splices into the session network is a complete substitute for
-// an IP-level VPN — for exactly the connections slopball actually makes.
+// an IP-level VPN — for exactly the connections club actually makes.
 type Forwarder struct {
 	ln     net.Listener
 	extra  []net.Listener

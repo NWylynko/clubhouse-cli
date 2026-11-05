@@ -14,35 +14,35 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/box"
-	"github.com/nwylynko/slopball-cli/canonical"
-	"github.com/nwylynko/slopball-cli/conductor"
-	"github.com/nwylynko/slopball-cli/console"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/cutover"
-	"github.com/nwylynko/slopball-cli/devserver"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/harness"
-	"github.com/nwylynko/slopball-cli/hoststart"
-	"github.com/nwylynko/slopball-cli/joindaemon"
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/monitor"
-	"github.com/nwylynko/slopball-cli/session"
-	"github.com/nwylynko/slopball-cli/syncengine"
-	"github.com/nwylynko/slopball-cli/telemetry"
-	"github.com/nwylynko/slopball-cli/trust"
+	"github.com/nwylynko/clubhouse-cli/box"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	"github.com/nwylynko/clubhouse-cli/conductor"
+	"github.com/nwylynko/clubhouse-cli/console"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/cutover"
+	"github.com/nwylynko/clubhouse-cli/devserver"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/harness"
+	"github.com/nwylynko/clubhouse-cli/hoststart"
+	"github.com/nwylynko/clubhouse-cli/joindaemon"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/monitor"
+	"github.com/nwylynko/clubhouse-cli/session"
+	"github.com/nwylynko/clubhouse-cli/syncengine"
+	"github.com/nwylynko/clubhouse-cli/telemetry"
+	"github.com/nwylynko/clubhouse-cli/trust"
 	"github.com/spf13/cobra"
 )
 
 // sessionCtx resolves the active session and loads its metadata. The PIN is
-// resolved in order of specificity: an explicit --pin, then $SLOPBALL_PIN, then
+// resolved in order of specificity: an explicit --pin, then $CLUB_PIN, then
 // the current working directory — because every work tree lives under
 // <home>/sessions/<pin>/, just running a verb from inside the folder you're
 // editing is enough (agents never have to thread --pin through every call).
 func sessionCtx(cmd *cobra.Command) (session.Session, session.Paths, error) {
 	pin := resolvePin(cmd)
 	if pin == "" {
-		return session.Session{}, session.Paths{}, fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set SLOPBALL_PIN")
+		return session.Session{}, session.Paths{}, fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set CLUB_PIN")
 	}
 	s, err := session.Load(pin)
 	if err != nil {
@@ -52,14 +52,14 @@ func sessionCtx(cmd *cobra.Command) (session.Session, session.Paths, error) {
 }
 
 // resolvePin picks the session PIN from (most specific first) the --pin flag,
-// $SLOPBALL_PIN, or the current working directory.
+// $CLUB_PIN, or the current working directory.
 func resolvePin(cmd *cobra.Command) string {
 	if cmd != nil {
 		if pin, _ := cmd.Flags().GetString("pin"); pin != "" {
 			return pin
 		}
 	}
-	if pin := os.Getenv("SLOPBALL_PIN"); pin != "" {
+	if pin := os.Getenv("CLUB_PIN"); pin != "" {
 		return pin
 	}
 	return pinFromCwd()
@@ -77,7 +77,7 @@ func pinFromCwd() string {
 
 // pinUnderSessions extracts the PIN when dir sits inside <sessionsRoot>/<pin>/…
 // (the layout session.ForPin lays down). Symlinks on either side are resolved so
-// a session under a symlinked $SLOPBALL_HOME (or /tmp on macOS) still matches.
+// a session under a symlinked $CLUB_HOME (or /tmp on macOS) still matches.
 func pinUnderSessions(dir, sessionsRoot string) string {
 	dir = resolvePath(dir)
 	sessionsRoot = resolvePath(sessionsRoot)
@@ -135,7 +135,7 @@ func mirrorDir(p session.Paths) string {
 }
 
 func addPinFlag(cmd *cobra.Command) {
-	cmd.Flags().String("pin", "", "session PIN (or $SLOPBALL_PIN)")
+	cmd.Flags().String("pin", "", "session PIN (or $CLUB_PIN)")
 }
 
 func addIntentFlag(cmd *cobra.Command) {
@@ -253,12 +253,12 @@ func runHost(cmd *cobra.Command, _ []string) error {
 		log.Infof("session %s live — mode=%s", r.PIN, mode)
 		log.Infof("git=%s  control=%s", r.GitURL, r.ControlURL)
 		if r.WorkDir != "" && r.WorkDir != r.Host.Work {
-			log.Infof("edit here: %s (branch %s) — then `slopball sync`", r.WorkDir, r.Branch)
+			log.Infof("edit here: %s (branch %s) — then `club sync`", r.WorkDir, r.Branch)
 			log.Infof("demo mirror (tracks main, do not edit): %s", r.Host.Work)
 		} else {
 			log.Infof("work=%s", r.Host.Work)
 		}
-		log.Infof("ticking every 2s — Ctrl-C to stop (SLOPBALL_LOG=debug for git traces)")
+		log.Infof("ticking every 2s — Ctrl-C to stop (CLUB_LOG=debug for git traces)")
 
 		t := time.NewTicker(2 * time.Second)
 		defer t.Stop()
@@ -274,7 +274,7 @@ func runHost(cmd *cobra.Command, _ []string) error {
 				// handoff). Ticking a fleet against a canonical nobody reads is a
 				// zombie host — stop, and let the next start rejoin as a client.
 				log.Infof("this machine is no longer the host for %s — stopping the fleet", r.PIN)
-				fmt.Fprintln(out, "no longer the host — hosting moved to another machine; run `slopball join "+r.PIN+"` to follow it")
+				fmt.Fprintln(out, "no longer the host — hosting moved to another machine; run `club join "+r.PIN+"` to follow it")
 				return nil
 			case <-t.C:
 				tick++
@@ -425,7 +425,7 @@ func runJoinAs(cmd *cobra.Command, pin, name string) error {
 	log.Infof("joined %s as %s", pin, j.Session.Branch)
 	log.Infof("remote=%s overlay=%s", j.Remote, j.Session.HostOverlayAddr)
 	log.Infof("work=%s", j.Paths.Work)
-	log.Infof("mirror refreshing every 2s — Ctrl-C to stop (SLOPBALL_LOG=debug for git traces)")
+	log.Infof("mirror refreshing every 2s — Ctrl-C to stop (CLUB_LOG=debug for git traces)")
 	fmt.Fprintf(cmd.OutOrStdout(), "joined %s as %s\nwork: %s\n", pin, j.Session.Branch, j.Paths.Work)
 	fmt.Fprintln(cmd.OutOrStdout(), "mirror daemon running — Ctrl-C to stop")
 
@@ -486,7 +486,7 @@ func checkOrphanedCanonical(ctx context.Context, client *controlplane.Client, pi
 		return controlplane.ErrUpgradeRequired
 	}
 	return fmt.Errorf("session %s: this machine holds canonical at %s, but the control plane %s shows no live host serving it — "+
-		"there is nothing to join. Re-host it onto a box with `slopball box add <user@host> --pin %s`, "+
+		"there is nothing to join. Re-host it onto a box with `club box add <user@host> --pin %s`, "+
 		"which takes the session over and serves this canonical again",
 		pin, p.Canonical, client.Base, pin)
 }
@@ -580,7 +580,7 @@ func followHost(ctx context.Context, s session.Session, p session.Paths, id sbGi
 var controlClients sync.Map // string → *controlplane.Client
 
 func controlClient(_ *cobra.Command) *controlplane.Client {
-	// flag → $SLOPBALL_CONTROL → stamped/loopback DefaultURL (BaseURL).
+	// flag → $CLUB_CONTROL → stamped/loopback DefaultURL (BaseURL).
 	url := controlplane.BaseURL(controlFlag)
 	if v, ok := controlClients.Load(url); ok {
 		return v.(*controlplane.Client)
@@ -671,7 +671,7 @@ func runConductor(cmd *cobra.Command, _ []string) error {
 		// forwarder port belongs to this process and stays true for as long as it
 		// runs, which is not long enough to put in front of anybody.
 		published := remote
-		// --remote may be the printed session address (slop://…); git cannot dial
+		// --remote may be the printed session address (club://…); git cannot dial
 		// that. Dialable is the one place that knows — same as firstrun / join.
 		client := controlClient(cmd)
 		if sess, serr := client.Session(ctx, s.PIN); serr != nil {
@@ -768,7 +768,7 @@ func runConductor(cmd *cobra.Command, _ []string) error {
 }
 
 // tickUntilDone runs one fleet tick every 2s until the context is cancelled.
-// Shared by `slopball conductor` and the first-run handoff so both loops behave
+// Shared by `club conductor` and the first-run handoff so both loops behave
 // identically — including tolerating a failing tick rather than exiting.
 func tickUntilDone(ctx context.Context, log *logx.Logger, tick func() error) error {
 	t := time.NewTicker(2 * time.Second)
@@ -788,7 +788,7 @@ func tickUntilDone(ctx context.Context, log *logx.Logger, tick func() error) err
 
 // conductorLoop drives the fleet against a remote canonical under this
 // machine's harness login — the terminal state of the first-run box branch, and
-// the same thing `slopball conductor --remote` does.
+// the same thing `club conductor --remote` does.
 func conductorLoop(ctx context.Context, cmd *cobra.Command, pin, remote string) error {
 	conductorCmd := &cobra.Command{}
 	// The caller's context, or this is a fleet nothing can stop: the wizard runs
@@ -849,7 +849,7 @@ func ResolveSeedURL(ctx context.Context, pin, target, container string) string {
 }
 
 // resolveCanonicalRemote asks the control plane where the session's git lives,
-// AS PUBLISHED — on the session network that is `slop://<pin>/git/canonical.git`.
+// AS PUBLISHED — on the session network that is `club://<pin>/git/canonical.git`.
 // The caller runs it through Dialable to get something git can clone, and keeps
 // this form for everything it prints: a loopback forwarder port is an address
 // that belongs to the running process, so it is no use in a message and worse
@@ -931,7 +931,7 @@ func runMonitor(cmd *cobra.Command, _ []string) error {
 	if asJSON && !localOnly {
 		pin = resolvePin(cmd)
 		if pin == "" {
-			return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set SLOPBALL_PIN")
+			return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set CLUB_PIN")
 		}
 	}
 
@@ -952,7 +952,7 @@ func runMonitor(cmd *cobra.Command, _ []string) error {
 			base = client.Base
 		}
 		all := monitor.Snapshot(ctx, home, base)
-		header := fmt.Sprintf("slopball monitor · home=%s · control=%s", home, dashStr(base))
+		header := fmt.Sprintf("club monitor · home=%s · control=%s", home, dashStr(base))
 		monitor.Render(out, header, all)
 	}
 
@@ -1022,12 +1022,12 @@ func boxRunnerForTarget(cmd *cobra.Command, target string) (box.Runner, error) {
 	return boxRunnerFn(cmd, []string{target})
 }
 
-// boxContainer resolves the container name: --name, else slopball-<pin>.
+// boxContainer resolves the container name: --name, else clubhouse-<pin>.
 func boxContainer(cmd *cobra.Command, pin string) string {
 	if n, _ := cmd.Flags().GetString("name"); n != "" {
 		return n
 	}
-	return "slopball-" + pin
+	return "clubhouse-" + pin
 }
 
 // BoxAddOptions turns `box add` flags + environment into box.Options. Split out
@@ -1061,7 +1061,7 @@ func BoxAddOptions(cmd *cobra.Command, pin string) (box.Options, error) {
 		binary = b
 	}
 	if buildLocal && len(binary) == 0 {
-		return box.Options{}, fmt.Errorf("--build-local requires --binary <path to linux/amd64 slopball>")
+		return box.Options{}, fmt.Errorf("--build-local requires --binary <path to linux/amd64 club>")
 	}
 
 	seedURL, _ := cmd.Flags().GetString("seed-url")
@@ -1077,12 +1077,12 @@ func BoxAddOptions(cmd *cobra.Command, pin string) (box.Options, error) {
 	// URL; a local container may dial the same service over Docker DNS. These are
 	// routes, not separate control-plane identities.
 	control := controlClient(cmd)
-	containerControl := strings.TrimSpace(os.Getenv("SLOPBALL_BOX_CONTROL"))
+	containerControl := strings.TrimSpace(os.Getenv("CLUB_BOX_CONTROL"))
 	if containerControl == "" {
 		// TEMPORARY: every box currently runs beside the development compose
 		// control plane. Once production has a real public control-plane domain,
 		// remove this default and let the container fall back to control.Base.
-		containerControl = "http://slopball-control-plane:7777"
+		containerControl = "http://clubhouse-control-plane:7777"
 	}
 
 	// `box add` means "the box hosts from now on", so the container claims the
@@ -1098,7 +1098,7 @@ func BoxAddOptions(cmd *cobra.Command, pin string) (box.Options, error) {
 			dropped = append(dropped, fmt.Sprintf("--dev %q", devCmd))
 		}
 		warn("--no-cutover leaves hosting where it is, so the box joins as a client and %s will not run there.\n"+
-			"         drop --no-cutover to have the box host + install deps + supervise the dev server, or start it yourself with `slopball box run`",
+			"         drop --no-cutover to have the box host + install deps + supervise the dev server, or start it yourself with `club box run`",
 			strings.Join(dropped, " and "))
 	}
 
@@ -1123,11 +1123,11 @@ func BoxAddOptions(cmd *cobra.Command, pin string) (box.Options, error) {
 		// A BYO box is SOMEBODY ELSE'S hardware, so it inherits whatever this
 		// laptop decided rather than our managed-box always-on rule. Telling it
 		// explicitly (rather than letting the container read its own absent
-		// file) is what makes `slopball telemetry on` here mean the box too.
+		// file) is what makes `club telemetry on` here mean the box too.
 		Telemetry: byoBoxTelemetry(),
 	}
 	if buildLocal {
-		// --image is the local build tag here; "" → box's own "slopball-box".
+		// --image is the local build tag here; "" → box's own "clubhouse-box".
 		opt.Image = image
 		if cmd.Flags().Changed("pull") {
 			warn("--pull has no effect with --build-local (nothing is pulled)")
@@ -1144,7 +1144,7 @@ func BoxAddOptions(cmd *cobra.Command, pin string) (box.Options, error) {
 // runBoxAdd provisions a cloud dev box. Default (plan 23): docker pull the
 // published image matching this CLI's version and run it — no ship, no on-box
 // build. --build-local --binary keeps the old ship+build path for developing
-// slopball / registry-less boxes. By default it then flips the client-facing
+// club / registry-less boxes. By default it then flips the client-facing
 // rendezvous onto the box (plan 22) so existing clients follow on their next
 // sync — no re-join.
 func runBoxAdd(cmd *cobra.Command, args []string) error {
@@ -1174,7 +1174,7 @@ func runBoxAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	out := cmd.OutOrStdout()
-	fmt.Fprintf(out, "new joins:\n\n    slopball join %s\n\n", b.JoinPIN)
+	fmt.Fprintf(out, "new joins:\n\n    club join %s\n\n", b.JoinPIN)
 	fmt.Fprintf(out, "git:     %s\ncontrol: %s\n\n", b.GitURL, controlClient(cmd).Base)
 	printDevTail(cmd, args, pin, opt.Dev, b)
 	return nil
@@ -1275,25 +1275,25 @@ func provisionAndCutover(ctx context.Context, cmd *cobra.Command, r box.Runner, 
 		if res.Drained {
 			fmt.Fprint(out, " [drain]")
 		}
-		fmt.Fprint(out, "\nexisting clients follow on next `slopball sync` — no re-join\n\n")
+		fmt.Fprint(out, "\nexisting clients follow on next `club sync` — no re-join\n\n")
 	}
 	return b, nil
 }
 
 // printDevTail closes `box add` with the truth about the dev server. Telling the
-// operator to run `slopball box run … -- <dev command>` when --dev was supplied
+// operator to run `club box run … -- <dev command>` when --dev was supplied
 // contradicts the flag, and (before the box actually hosted) was wrong advice
 // besides — that container was serving nothing.
 func printDevTail(cmd *cobra.Command, args []string, pin, devCmd string, b *box.Box) {
 	out := cmd.OutOrStdout()
 	if devCmd == "" {
-		fmt.Fprintf(out, "start the dev server on the box:\n\n    slopball box run -- <dev command>\n")
+		fmt.Fprintf(out, "start the dev server on the box:\n\n    club box run -- <dev command>\n")
 		return
 	}
 	client := controlClient(cmd)
 	ctx := context.Background()
 	// Resolved, not raw: this URL is printed for a human to OPEN, and opening
-	// it is a dial. `slop://<pin>/dev/` pasted into a browser is exactly the
+	// it is a dial. `club://<pin>/dev/` pasted into a browser is exactly the
 	// failure plan 41 fixes.
 	if devURL, err := devEndpoint(ctx, client, pin); err == nil && devURL != "" {
 		fmt.Fprintf(out, "dev:     %s\n", devURL)
@@ -1314,7 +1314,7 @@ func printDevTail(cmd *cobra.Command, args []string, pin, devCmd string, b *box.
 	// container has not registered yet, not that the project is missing
 	// something.
 	fmt.Fprintf(out, "         its URL appears once the container registers with the control plane\n")
-	fmt.Fprintf(out, "         watch it with:  slopball box logs\n")
+	fmt.Fprintf(out, "         watch it with:  club box logs\n")
 }
 
 // runElect implements plan 21: elect this laptop's harness CLI as the
@@ -1405,7 +1405,7 @@ func runElect(cmd *cobra.Command, _ []string) error {
 		RunnerID: lease.RunnerID, Active: true,
 	})
 	fmt.Fprintf(cmd.OutOrStdout(),
-		"elected %s (%s)\nrunner id: %s\nAI roles run on THIS laptop via the %s harness — login stays here.\nNow run `slopball conductor` here (this session is %s — export SLOPBALL_PIN=%s to skip\n--pin on off-box commands). It resolves the box canonical from the control plane\nand drives merges off-box (or pass --remote <box-git-url>).\n",
+		"elected %s (%s)\nrunner id: %s\nAI roles run on THIS laptop via the %s harness — login stays here.\nNow run `club conductor` here (this session is %s — export CLUB_PIN=%s to skip\n--pin on off-box commands). It resolves the box canonical from the control plane\nand drives merges off-box (or pass --remote <box-git-url>).\n",
 		lease.Elector, lease.Harness, lease.RunnerID, lease.Harness, s.PIN, s.PIN)
 	_ = b.Close()
 	return nil

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	sbGit "github.com/nwylynko/slopball-cli/git"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
 )
 
 // CommitsBehindMain counts how many non-merge commits on main in mainRepo are

@@ -3,16 +3,16 @@ package cli
 import (
 	"fmt"
 
-	"github.com/nwylynko/slopball-cli/harness"
-	"github.com/nwylynko/slopball-cli/session"
+	"github.com/nwylynko/clubhouse-cli/harness"
+	"github.com/nwylynko/clubhouse-cli/session"
 	"github.com/spf13/cobra"
 )
 
-// newHarnessVerbCmd builds `slopball claude` / `slopball codex`: the one-word
-// form of `slopball open && claude`. It resolves the session exactly as `open`
+// newHarnessVerbCmd builds `club claude` / `club codex`: the one-word
+// form of `club open && claude`. It resolves the session exactly as `open`
 // does and starts the agent CLI in that session's work tree, with the same
-// session environment the subshell gets — $SLOPBALL_PIN and a runnable
-// `slopball`.
+// session environment the subshell gets — $CLUB_PIN and a runnable
+// `club`.
 //
 // It exists because the two commands are what a human types every time and the
 // pair is the whole ceremony of joining an agent to a session; a verb that
@@ -27,11 +27,11 @@ func newHarnessVerbCmd(n harness.Name) *cobra.Command {
 	verb := string(n)
 	c := &cobra.Command{
 		Use:   verb + " [pin] [-- args...]",
-		Short: "Start " + verb + " in the session work tree (`slopball open` + " + verb + " in one verb)",
-		Long: "Shorthand for `slopball open` followed by `" + verb + "`: picks the live session\n" +
-			"the way `open` does, then runs " + verb + " in its work tree with $SLOPBALL_PIN set\n" +
-			"and slopball on PATH. Pass a PIN to choose a session, and put anything for\n" +
-			verb + " itself after `--` so its flags never collide with slopball's.",
+		Short: "Start " + verb + " in the session work tree (`club open` + " + verb + " in one verb)",
+		Long: "Shorthand for `club open` followed by `" + verb + "`: picks the live session\n" +
+			"the way `open` does, then runs " + verb + " in its work tree with $CLUB_PIN set\n" +
+			"and club on PATH. Pass a PIN to choose a session, and put anything for\n" +
+			verb + " itself after `--` so its flags never collide with club's.",
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runHarnessVerb(cmd, n, args)
@@ -47,7 +47,7 @@ func runHarnessVerb(cmd *cobra.Command, n harness.Name, args []string) error {
 	}
 	bin, ok := harnessBin(n)
 	if !ok {
-		return fmt.Errorf("%s is not installed on this machine — install its CLI and run `slopball %s` again (`slopball open` gives you the session work tree without it)", n, n)
+		return fmt.Errorf("%s is not installed on this machine — install its CLI and run `club %s` again (`club open` gives you the session work tree without it)", n, n)
 	}
 	pin, err := resolveOpenPIN(cmd, pinArgs)
 	if err != nil {
@@ -58,7 +58,7 @@ func runHarnessVerb(cmd *cobra.Command, n harness.Name, args []string) error {
 	return spawnInSessionWork(cmd, pin, workPath, bin, passthrough)
 }
 
-// splitAtDash divides args at the `--` cobra swallowed: before it is slopball's
+// splitAtDash divides args at the `--` cobra swallowed: before it is club's
 // (the optional PIN), after it is the agent CLI's.
 func splitAtDash(cmd *cobra.Command, args []string) (mine, theirs []string) {
 	at := cmd.ArgsLenAtDash()

@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/placement"
-	"github.com/nwylynko/slopball-cli/session"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/placement"
+	"github.com/nwylynko/clubhouse-cli/session"
 	"github.com/spf13/cobra"
 )
 
-// runTake implements `slopball take <git|dev|conductor|all>` — the manual half
+// runTake implements `club take <git|dev|conductor|all>` — the manual half
 // of placement (plan 30). Automatic placement covers the case nobody is around
 // for; this covers the case where somebody is, and it is also how a returning
 // creator picks its services back up.
@@ -63,11 +63,11 @@ func runTake(cmd *cobra.Command, args []string) error {
 	if len(failed) > 0 {
 		return fmt.Errorf("could not take %s (use --force only for a wedged owner)", strings.Join(failed, "; "))
 	}
-	fmt.Fprintln(out, "\nthe service starts here on this machine's next tick — leave `slopball` or `slopball join` running")
+	fmt.Fprintln(out, "\nthe service starts here on this machine's next tick — leave `club` or `club join` running")
 	return nil
 }
 
-// runHandOff implements `slopball hand-off <service> [--to <member>]` — give a
+// runHandOff implements `club hand-off <service> [--to <member>]` — give a
 // service up on purpose, without waiting for a lease to expire. With no target
 // it simply frees the service and placement re-homes it.
 func runHandOff(cmd *cobra.Command, args []string) error {
@@ -121,7 +121,7 @@ func servicesArg(arg string) ([]string, error) {
 			return []string{s}, nil
 		}
 	}
-	return nil, fmt.Errorf("unknown service %q — slopball places %s", arg, strings.Join(controlplane.Services, ", "))
+	return nil, fmt.Errorf("unknown service %q — club places %s", arg, strings.Join(controlplane.Services, ", "))
 }
 
 // resolveMember finds this machine's member id. A machine with session state
@@ -131,7 +131,7 @@ func resolveMember(s session.Session) (string, error) {
 	if s.MemberID != "" {
 		return s.MemberID, nil
 	}
-	return "", fmt.Errorf("this machine is not a member of %s — run `slopball join %s`", s.PIN, s.PIN)
+	return "", fmt.Errorf("this machine is not a member of %s — run `club join %s`", s.PIN, s.PIN)
 }
 
 func memberIDByName(ctx context.Context, client *controlplane.Client, pin, name string) (string, error) {

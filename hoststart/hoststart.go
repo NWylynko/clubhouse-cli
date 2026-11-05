@@ -1,4 +1,4 @@
-// Package hoststart wires `slopball` (no args): seed canonical, start git +
+// Package hoststart wires `club` (no args): seed canonical, start git +
 // conductor + register into the control plane (plans/10 + 24).
 package hoststart
 
@@ -16,27 +16,27 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/admission"
-	"github.com/nwylynko/slopball-cli/boxexec"
-	"github.com/nwylynko/slopball-cli/canonical"
-	"github.com/nwylynko/slopball-cli/conductor"
-	"github.com/nwylynko/slopball-cli/contracts"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/detect"
-	"github.com/nwylynko/slopball-cli/devserver"
-	"github.com/nwylynko/slopball-cli/durability"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/gitserver"
-	"github.com/nwylynko/slopball-cli/harness"
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/netbind"
-	"github.com/nwylynko/slopball-cli/placement"
-	"github.com/nwylynko/slopball-cli/runfile"
-	"github.com/nwylynko/slopball-cli/runtime"
-	"github.com/nwylynko/slopball-cli/session"
-	"github.com/nwylynko/slopball-cli/sessionnet"
-	"github.com/nwylynko/slopball-cli/syncengine"
-	"github.com/nwylynko/slopball-cli/telemetry"
+	"github.com/nwylynko/clubhouse-cli/admission"
+	"github.com/nwylynko/clubhouse-cli/boxexec"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	"github.com/nwylynko/clubhouse-cli/conductor"
+	"github.com/nwylynko/clubhouse-cli/contracts"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/detect"
+	"github.com/nwylynko/clubhouse-cli/devserver"
+	"github.com/nwylynko/clubhouse-cli/durability"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/gitserver"
+	"github.com/nwylynko/clubhouse-cli/harness"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/netbind"
+	"github.com/nwylynko/clubhouse-cli/placement"
+	"github.com/nwylynko/clubhouse-cli/runfile"
+	"github.com/nwylynko/clubhouse-cli/runtime"
+	"github.com/nwylynko/clubhouse-cli/session"
+	"github.com/nwylynko/clubhouse-cli/sessionnet"
+	"github.com/nwylynko/clubhouse-cli/syncengine"
+	"github.com/nwylynko/clubhouse-cli/telemetry"
 )
 
 // ErrJoinAsClient means the control plane says this machine must join as a client
@@ -57,7 +57,7 @@ type Options struct {
 	Conductor string
 	Model     string
 	// Brief is the one-line "what are we building?" answer. It is committed to
-	// main as .slopball/brief.md when main carries none — from there the setup
+	// main as .club/brief.md when main carries none — from there the setup
 	// role scaffolds from it and every joined agent's contract quotes it
 	// (plan 28). Never overwrites a brief the session already agreed on.
 	Brief string
@@ -85,7 +85,7 @@ type Options struct {
 	ServeOnly bool
 	// Takeover claims the PIN even when the session's generation is ahead of
 	// this machine's — the one authorized promotion (plan 25), set only by
-	// `slopball box add`. Without it a fresh box (generation 0) is demoted to a
+	// `club box add`. Without it a fresh box (generation 0) is demoted to a
 	// client and never hosts, never seeds canonical, never runs DevCommand.
 	Takeover bool
 	// MirrorURL is the optional durability remote (wizard / --mirror). Empty
@@ -94,7 +94,7 @@ type Options struct {
 	MirrorURL string
 	// BoxBoot is set when this process is the internal `_host` boot path — the
 	// dedicated box container. It publishes the session-network exec service so
-	// members can `slopball box run` without ssh.
+	// members can `club box run` without ssh.
 	BoxBoot bool
 }
 
@@ -216,7 +216,7 @@ type Running struct {
 }
 
 // StopReason explains why Demoted fired. The two causes need different advice —
-// a session that moved is one you can `slopball join`, an expired one is not —
+// a session that moved is one you can `club join`, an expired one is not —
 // so the host loop reads this rather than assuming a takeover.
 func (r *Running) StopReason() string {
 	s, _ := r.stopReason.Load().(string)
@@ -285,11 +285,11 @@ func Start(ctx context.Context, opt Options) (r *Running, err error) {
 	// An invited box is handed its secret via the environment (plan 44 ticket
 	// 05). Plant it before Claim so Takeover + JoinMember can present it as
 	// Bearer rather than trying to self-register.
-	if secret := strings.TrimSpace(os.Getenv("SLOPBALL_MEMBER_SECRET")); secret != "" {
+	if secret := strings.TrimSpace(os.Getenv("CLUB_MEMBER_SECRET")); secret != "" {
 		if !handed {
-			return nil, fmt.Errorf("SLOPBALL_MEMBER_SECRET set but no PIN was handed — box boot requires --pin")
+			return nil, fmt.Errorf("CLUB_MEMBER_SECRET set but no PIN was handed — box boot requires --pin")
 		}
-		id := strings.TrimSpace(os.Getenv("SLOPBALL_MEMBER_ID"))
+		id := strings.TrimSpace(os.Getenv("CLUB_MEMBER_ID"))
 		if err := session.WriteMembership(pin, id, secret); err != nil {
 			return nil, fmt.Errorf("plant invited membership: %w", err)
 		}
@@ -347,7 +347,7 @@ func Start(ctx context.Context, opt Options) (r *Running, err error) {
 	}
 	overlay := ""
 	if pin != "" {
-		overlay = "slop-" + pin + ".host"
+		overlay = "club-" + pin + ".host"
 	}
 	// An empty-disk TAKEOVER seeds before it claims. The claim demotes the
 	// incumbent — deletes its leases, and it stands down at once, taking its
@@ -529,7 +529,7 @@ func Start(ctx context.Context, opt Options) (r *Running, err error) {
 	if mirrorURL == "" {
 		if sess, err := client.Session(ctx, pin); err == nil {
 			// raw endpoint ok: mirror is a GitHub (or similar) HTTPS URL published
-			// for durability — never a slop:// session address, and never dialled
+			// for durability — never a club:// session address, and never dialled
 			// as a session service; it is handed to git push as a remote.
 			if ep, ok := sess.Endpoints[controlplane.EndpointMirror]; ok {
 				mirrorURL = ep.URL
@@ -559,7 +559,7 @@ func Start(ctx context.Context, opt Options) (r *Running, err error) {
 		PIN:             pin,
 		Role:            session.RoleHost,
 		Branch:          branch,
-		HostOverlayAddr: "slop-" + pin + ".host",
+		HostOverlayAddr: "club-" + pin + ".host",
 		Capability:      detect.Probe(),
 	}
 	if err := meta.Save(); err != nil {
@@ -587,7 +587,7 @@ func Start(ctx context.Context, opt Options) (r *Running, err error) {
 		host.Srv.LogsSubscribe = logs.Subscribe
 	}
 	// How this project installs and starts: explicit flag → the project's own
-	// committed .slopball/run.json → detection (plan 29). The committed file is
+	// committed .club/run.json → detection (plan 29). The committed file is
 	// why a migrated host supervises the same process the dead one did, with no
 	// flags anywhere.
 	declared := runfile.ReadFromMain(ctx, host)
@@ -696,7 +696,7 @@ func Start(ctx context.Context, opt Options) (r *Running, err error) {
 	// Automatic placement (plan 30): this machine holds a lease for each service
 	// it actually serves, and renews it every tick. When it goes away the leases
 	// expire and a survivor takes them — no human, no election ceremony.
-	// Record which member this machine is, so `slopball take` / `hand-off` can
+	// Record which member this machine is, so `club take` / `hand-off` can
 	// speak for it later without re-joining (plan 30).
 	if memberID != "" {
 		meta.MemberID = memberID
@@ -771,7 +771,7 @@ func Start(ctx context.Context, opt Options) (r *Running, err error) {
 	return r, nil
 }
 
-// AdoptDeclaredRun picks up `.slopball/run.json` when it lands on main *after*
+// AdoptDeclaredRun picks up `.club/run.json` when it lands on main *after*
 // this host started, and is a no-op once a dev server is supervised here.
 //
 // runfile.ReadFromMain used to be consulted exactly once, at Start. That held
@@ -855,7 +855,7 @@ func (r *Running) StartDev(ctx context.Context, install, dev []string) error {
 	// only v4 is unreachable on a box where localhost resolves ::1 first.
 	devPort, _ := runtime.LocalDevPort(r.Host.Work)
 	if err := session.PublishDevURL(r.PIN, fmt.Sprintf("http://127.0.0.1:%d", devPort)); err != nil {
-		log.Warnf("could not publish the dev URL for `slopball site`: %v", err)
+		log.Warnf("could not publish the dev URL for `club site`: %v", err)
 	}
 	if r.Runtime != nil {
 		// A seeded repo usually already declares PORT, and main may not advance
@@ -867,7 +867,7 @@ func (r *Running) StartDev(ctx context.Context, install, dev []string) error {
 
 // KeepDevAlive is the host tick's liveness pass (plan 34): a supervised dev
 // process that exited on its own is started again, and the restart is said out
-// loud. Nothing else in slopball ever asked whether the process was alive, so a
+// loud. Nothing else in club ever asked whether the process was alive, so a
 // dev server that fell over — because the project had not merged yet, because
 // the box OOM-killed it, because a bad commit crashed it — stayed dead for the
 // rest of the session while the host went on ticking healthily.
@@ -912,15 +912,15 @@ func (r *Running) KeepDevAlive(ctx context.Context, mainAdvanced bool) {
 			"Fix the command (or the project) and merge; the next commit on main gives it another go. Its last output:\n%s",
 			command, r.Dev.ShortExits(), r.logTail(20))
 		log.Errorf("%s", msg)
-		r.writeDevLog("slopball: " + msg)
+		r.writeDevLog("club: " + msg)
 	case err != nil:
 		log.Warnf("dev server %q could not be restarted: %v", command, err)
 	default:
 		msg := fmt.Sprintf("dev server %q had exited after %s — restarted it (attempt %d)",
 			command, lasted, r.Dev.ShortExits())
 		log.Infof("%s", msg)
-		r.writeDevLog("slopball: " + msg)
-		// A new process behind the same port: re-announce, or slopdebug/monitor
+		r.writeDevLog("club: " + msg)
+		// A new process behind the same port: re-announce, or clubdebug/monitor
 		// and the error-watcher stay pointed at a port nothing is listening on.
 		if r.Runtime != nil {
 			r.Runtime.AnnounceDev(ctx)
@@ -929,14 +929,14 @@ func (r *Running) KeepDevAlive(ctx context.Context, mainAdvanced bool) {
 	}
 }
 
-// writeDevLog puts a slopball-side line in front of the error-watcher, which
+// writeDevLog puts a clubhouse-side line in front of the error-watcher, which
 // reads the dev LogBuffer (/logs) and never the host's stderr.
 func (r *Running) writeDevLog(line string) {
 	if b := r.devLogs(); b != nil {
 		// Tagged as ours: one of these messages quotes logTail(20) back into the
 		// buffer, so an untagged write would hand the watcher its own narration
 		// as a fresh error and it would re-fire on itself forever.
-		b.WriteLine(devserver.StreamSlopball, devserver.PhaseDev, line)
+		b.WriteLine(devserver.StreamClub, devserver.PhaseDev, line)
 	}
 }
 
@@ -1118,7 +1118,7 @@ func (r *Running) cycle(ctx context.Context) error {
 // the host role" (demote) or "a cutover moved the session onto the canonical we
 // are already serving" (keep hosting at the new generation).
 //
-// The second case is `slopball box add`: the box takes over from inside the
+// The second case is `club box add`: the box takes over from inside the
 // container, then the operator's laptop flips the cutover — bumping a generation
 // the box has no other way to learn. Reading that as a demotion killed the box's
 // host role seconds after it started, with the control plane still pointing at
@@ -1298,7 +1298,7 @@ func (r *Running) stopGitHolder() {
 		return
 	}
 	r.Host.Srv.UnpublishSession()
-	if strings.HasPrefix(r.GitURL, "slop://") {
+	if strings.HasPrefix(r.GitURL, "club://") {
 		r.GitURL = r.Host.RemoteURL()
 	}
 	r.GitDirect = ""
@@ -1371,7 +1371,7 @@ func (r *Running) stopExecHolder() {
 // PrintJoin writes the human-facing join blurb.
 func (r *Running) PrintJoin() string {
 	stack := detect.Probe().DefaultStack()
-	return fmt.Sprintf("detected %s %s + %s — starting session (change?)\n\nsession live. share with your team:\n\n    slopball join %s\n\ndemo url:  %s\ngit:       %s\ncontrol:   %s\n",
+	return fmt.Sprintf("detected %s %s + %s — starting session (change?)\n\nsession live. share with your team:\n\n    club join %s\n\ndemo url:  %s\ngit:       %s\ncontrol:   %s\n",
 		stack.Runtime, stack.Version, stack.PkgMgr, r.PIN, r.DemoURL, r.GitURL, r.ControlURL)
 }
 
@@ -1502,7 +1502,7 @@ func recordFromBootOnwards(ctx context.Context, client *controlplane.Client, pin
 // log line and is then drained — the emitter delivers in the background, so a
 // process that exits on a boot error otherwise takes the one envelope that
 // mattered with it. The CONTROL PLANE gets it as a fact on the box record, so
-// `slopball monitor` and the console say "box failed — <why>" within seconds
+// `club monitor` and the console say "box failed — <why>" within seconds
 // rather than "provisioning…" until the provisioner gives up eight minutes
 // later and reports a timeout instead of a cause.
 //
@@ -1768,7 +1768,7 @@ func DirectIsPublishable(bind string) bool {
 }
 
 // logsURLFromGit derives the /logs sibling of a git endpoint. It handles both a
-// machine address and a slop:// session address, because the off-box
+// machine address and a club:// session address, because the off-box
 // error-watcher polls whichever one the host published.
 func logsURLFromGit(gitURL string) string {
 	if sessionnet.IsSessionURL(gitURL) {

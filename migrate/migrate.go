@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/canonical"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/detect"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/gitserver"
-	"github.com/nwylynko/slopball-cli/netbind"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/detect"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/gitserver"
+	"github.com/nwylynko/clubhouse-cli/netbind"
 )
 
 // HostProvider conjures a machine to rebuild canonical on when a session has
@@ -63,14 +63,14 @@ type Request struct {
 	DetectGone   func() bool                               // confirmation; nil → trust caller
 	// SessionNet, when set, puts the reconstructed canonical on the session
 	// network: the new host registers as the session's git holder and the
-	// control plane is told `slop://<pin>/git/canonical.git` — the address
+	// control plane is told `club://<pin>/git/canonical.git` — the address
 	// that names the ROLE — instead of this machine's listener.
 	//
 	// Without it Run publishes a machine address, which is what it did before
 	// the session network existed (plan 16), and what session wioqg5's
 	// survivor did on 2026-08-16: it took the git lease from a departed box and
 	// published http://127.0.0.1:63231/canonical.git into a shared control
-	// plane, so every later `slopball join` dialled its own localhost, and the
+	// plane, so every later `club join` dialled its own localhost, and the
 	// conductor's forwarder — which names the role — found no holder. The
 	// caller that has a relay hands one in; a session with no relay still gets
 	// the direct address, as before.

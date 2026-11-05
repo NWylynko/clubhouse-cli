@@ -10,16 +10,16 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/nwylynko/slopball-cli/canonical"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/durability"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/syncengine"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/durability"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/syncengine"
 )
 
 // mergerLog surfaces what the merger is doing — especially when a conflict hands
-// off to the AI harness — visible by default (not behind SLOPBALL_LOG=debug) so an
+// off to the AI harness — visible by default (not behind CLUB_LOG=debug) so an
 // operator watching the host or conductor terminal sees the agent working.
 var mergerLog = logx.New("merger")
 
@@ -43,7 +43,7 @@ type Fleet struct {
 	// and returns. This is the difference between a merge hot path that keeps
 	// its 2s cadence and one that stops for four minutes while an agent runs
 	// create-next-app: with the barrier at the end of the tick, a client's
-	// `slopball sync` reported ok and then sat unmerged for the whole scaffold.
+	// `club sync` reported ok and then sat unmerged for the whole scaffold.
 	//
 	// The bar for this list is that the role touches nothing another role or the
 	// host loop touches. The error-watcher is NOT on it: its AI fix runs against
@@ -64,7 +64,7 @@ type Fleet struct {
 var fleetLog = logx.New("fleet")
 
 // TickRoles starts the Detached roles, then runs Roles to completion. This is
-// the loop door: `slopball conductor`, the join daemon, and the host's own 2s
+// the loop door: `club conductor`, the join daemon, and the host's own 2s
 // tick, all of which get another go 2s later.
 func (f *Fleet) TickRoles(ctx context.Context) error {
 	f.startDetached(ctx)
@@ -72,7 +72,7 @@ func (f *Fleet) TickRoles(ctx context.Context) error {
 }
 
 // TickRolesToCompletion runs every role — Detached ones included — and waits.
-// This is the one-shot door: `slopball conductor --once` and the emulator's
+// This is the one-shot door: `club conductor --once` and the emulator's
 // hand-driven ticks, where the caller's next line depends on the work being
 // done and there is no next tick to catch what was skipped.
 func (f *Fleet) TickRolesToCompletion(ctx context.Context) error {
@@ -289,7 +289,7 @@ func (m *Merger) mergeBranch(ctx context.Context, branch string) error {
 	}
 	msg := fmt.Sprintf("merge %s into main", branch)
 	if intent != "" {
-		msg += "\n\nSlopball-Intent: " + intent
+		msg += "\n\nClub-Intent: " + intent
 	}
 	if err := c.Run(ctx, "commit", "-m", msg); err != nil {
 		_ = c.Run(ctx, "merge", "--abort")
@@ -424,7 +424,7 @@ func (m *Merger) publishConvergence(ctx context.Context) {
 // publishConvergenceRecord sends one sample. Sampling stays on the fleet's own
 // 2s tick — that is the merge hot path — but the *send* rides this process's
 // member cycle when it has one (plan 43). Only a process with no membership at
-// all, which is `slopball conductor` run standalone, publishes directly.
+// all, which is `club conductor` run standalone, publishes directly.
 func (m *Merger) publishConvergenceRecord(ctx context.Context, c controlplane.Convergence) {
 	if out := m.Control.OutboxFor(m.PIN); out != nil {
 		out.SetConvergence(c)

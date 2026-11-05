@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 // HolderConfig describes the service a lease holder publishes onto the session
@@ -388,5 +388,5 @@ func (l *holderListener) handleDirect(ctx context.Context, c net.Conn) {
 
 type sessionAddr struct{ pin, service string }
 
-func (a sessionAddr) Network() string { return "slopball" }
+func (a sessionAddr) Network() string { return "club" }
 func (a sessionAddr) String() string  { return a.pin + "/" + a.service }

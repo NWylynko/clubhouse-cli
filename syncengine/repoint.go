@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/logx"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 var repointLog = logx.New("repoint")
@@ -127,7 +127,7 @@ func CatchUp(ctx context.Context, fromURL, toURL string) error {
 	if urlsEqual(fromURL, toURL) {
 		return nil
 	}
-	tmp, err := os.MkdirTemp("", "slopball-catchup-*")
+	tmp, err := os.MkdirTemp("", "clubhouse-catchup-*")
 	if err != nil {
 		return err
 	}

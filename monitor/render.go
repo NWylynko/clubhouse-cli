@@ -14,7 +14,7 @@ func Render(w io.Writer, header string, all []Status) {
 		fmt.Fprintln(w, header)
 	}
 	if len(all) == 0 {
-		fmt.Fprintln(w, "no sessions found under this SLOPBALL_HOME — start a host or join one")
+		fmt.Fprintln(w, "no sessions found under this CLUB_HOME — start a host or join one")
 		return
 	}
 	fmt.Fprintf(w, "%-8s %-7s %-14s %-9s %-9s %-6s %-4s %-4s\n",

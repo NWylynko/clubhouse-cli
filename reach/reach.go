@@ -1,5 +1,5 @@
 // Package reach probes whether this machine can reach a session's published
-// services — the same checks slopball monitor uses, shared so the console and
+// services — the same checks club monitor uses, shared so the console and
 // monitor never disagree on stage (plan 42).
 package reach
 
@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/sessionnet"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/sessionnet"
 )
 
 // SessionService is git or dev on the session network.
@@ -34,7 +34,7 @@ type Result struct {
 }
 
 // ProbeSessionService dials a session service the way a member would — through
-// Dialable for published endpoints, never the raw `slop://` URL (plan 38).
+// Dialable for published endpoints, never the raw `club://` URL (plan 38).
 func ProbeSessionService(ctx context.Context, client *controlplane.Client, sess controlplane.Session, pin string, svc SessionService) Result {
 	if client == nil {
 		return Result{}

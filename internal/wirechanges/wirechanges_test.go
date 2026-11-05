@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nwylynko/slopball-cli/internal/wirechanges"
+	"github.com/nwylynko/clubhouse-cli/internal/wirechanges"
 )
 
 const repoRoot = "../.."

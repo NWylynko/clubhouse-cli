@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/canonical"
-	"github.com/nwylynko/slopball-cli/contracts"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/runtime"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	"github.com/nwylynko/clubhouse-cli/contracts"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/runtime"
 )
 
 var setupLog = logx.New("setup")
@@ -22,7 +22,7 @@ var setupLog = logx.New("setup")
 // MarkerFile records on main that the setup role has run. Committed (like the
 // brief) so "once" survives a host restart, a migration, and a box cutover —
 // the role ticks every 2s and idempotence is its entire safety story.
-const MarkerFile = ".slopball/setup.done"
+const MarkerFile = ".club/setup.done"
 
 // setupTimeout bounds one scaffold. A create-next-app + install is 30–90s; the
 // ceiling exists because plan 29's first-run flow blocks on exactly one tick,
@@ -115,7 +115,7 @@ func (s *Setup) Tick(ctx context.Context) error {
 	if s.Host.Remote != "" {
 		src = s.Host.Remote
 	}
-	tmp, err := os.MkdirTemp("", "slopball-setup-*")
+	tmp, err := os.MkdirTemp("", "clubhouse-setup-*")
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func (s *Setup) Tick(ctx context.Context) error {
 	runCtx, cancel := context.WithTimeout(ctx, setupTimeout)
 	defer cancel()
 	// Scaffold mode hands the tree over to a generator, which refuses to run
-	// alongside slopball's own files — so they step out and come back, with any
+	// alongside club's own files — so they step out and come back, with any
 	// collision reconciled by a second turn (plan 31). Adapt mode has a real
 	// project and no generator, so nothing moves.
 	run := func() error { return s.Agent(runCtx, tmp, prompt, onActivity) }
@@ -159,16 +159,16 @@ func (s *Setup) Tick(ctx context.Context) error {
 		setupLog.Errorf("refusing to commit the %s: %v", mode, err)
 		return err
 	}
-	if err := os.MkdirAll(filepath.Join(tmp, ".slopball"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmp, ".club"), 0o755); err != nil {
 		return err
 	}
-	// slopball owns .slopball/ — the agent is forbidden to touch it. The box
+	// club owns .club/ — the agent is forbidden to touch it. The box
 	// container sets PORT= too, but mesh hosts read this file and Vite ignores
 	// env anyway, so the framework config the prompt asks for is what matters.
 	if err := os.WriteFile(filepath.Join(tmp, filepath.FromSlash(runtime.SharedEnvPath)), []byte("PORT=3000\n"), 0o644); err != nil {
 		return err
 	}
-	marker := fmt.Sprintf("%s by slopball's setup role from .slopball/brief.md\n", mode)
+	marker := fmt.Sprintf("%s by club's setup role from .club/brief.md\n", mode)
 	if err := os.WriteFile(filepath.Join(tmp, filepath.FromSlash(MarkerFile)), []byte(marker), 0o644); err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (s *Setup) marked(ctx context.Context) bool {
 }
 
 // projectFiles lists what is tracked on main that is actually somebody's
-// project, as opposed to slopball's own artifacts. Non-empty → adapt mode.
+// project, as opposed to club's own artifacts. Non-empty → adapt mode.
 func (s *Setup) projectFiles(ctx context.Context) []string {
 	out, err := sbGit.Output(ctx, s.Host.Bare, "ls-tree", "-r", "--name-only", "main")
 	if err != nil {
@@ -209,7 +209,7 @@ func (s *Setup) projectFiles(ctx context.Context) []string {
 	var paths []string
 	for _, p := range strings.Split(out, "\n") {
 		p = strings.TrimSpace(p)
-		if p == "" || isSlopballArtifact(p) {
+		if p == "" || isClubArtifact(p) {
 			continue
 		}
 		// The seed README canonical.Create writes is not a project.
@@ -221,14 +221,14 @@ func (s *Setup) projectFiles(ctx context.Context) []string {
 	return paths
 }
 
-func isSlopballArtifact(p string) bool {
-	return strings.HasPrefix(p, ".slopball/") ||
+func isClubArtifact(p string) bool {
+	return strings.HasPrefix(p, ".club/") ||
 		strings.HasPrefix(p, ".cursor/") ||
 		p == "AGENTS.md" || p == "CLAUDE.md" || p == ".gitignore"
 }
 
 // WriteBrief commits brief onto main when main carries none, and reports
-// whether it wrote one. This is how `slopball --brief "…"` (and plan 29's
+// whether it wrote one. This is how `club --brief "…"` (and plan 29's
 // wizard) hand the role its input without a flag living in memory.
 func WriteBrief(ctx context.Context, host *canonical.Host, id sbGit.Identity, brief string) error {
 	brief = strings.TrimSpace(brief)
@@ -242,7 +242,7 @@ func WriteBrief(ctx context.Context, host *canonical.Host, id sbGit.Identity, br
 	if host.Remote != "" {
 		src = host.Remote
 	}
-	tmp, err := os.MkdirTemp("", "slopball-brief-*")
+	tmp, err := os.MkdirTemp("", "clubhouse-brief-*")
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func WriteBrief(ctx context.Context, host *canonical.Host, id sbGit.Identity, br
 	if err := c.Run(ctx, "checkout", "main"); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Join(tmp, ".slopball"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmp, ".club"), 0o755); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(tmp, filepath.FromSlash(contracts.BriefFile)), []byte(brief+"\n"), 0o644); err != nil {
@@ -276,7 +276,7 @@ func WriteBrief(ctx context.Context, host *canonical.Host, id sbGit.Identity, br
 // (plan 31). The setup role's scaffolding agent should build against the same
 // protocol its teammates will follow — it cannot, if the contracts only exist on
 // branches it never sees. And a scaffold that writes its own AGENTS.md must
-// collide with slopball's *while the setup role is still running*, because that
+// collide with club's *while the setup role is still running*, because that
 // is the only moment anything can reconcile the two; arriving later via a merge
 // puts the conflict where nothing is left to resolve it.
 func WriteContracts(ctx context.Context, host *canonical.Host, id sbGit.Identity) error {
@@ -287,7 +287,7 @@ func WriteContracts(ctx context.Context, host *canonical.Host, id sbGit.Identity
 	if host.Remote != "" {
 		src = host.Remote
 	}
-	tmp, err := os.MkdirTemp("", "slopball-contracts-*")
+	tmp, err := os.MkdirTemp("", "clubhouse-contracts-*")
 	if err != nil {
 		return err
 	}
@@ -305,7 +305,7 @@ func WriteContracts(ctx context.Context, host *canonical.Host, id sbGit.Identity
 		return err
 	}
 	// `add -A` rather than one add per contract, because Install now *removes*
-	// what an earlier slopball wrote (contracts.Legacy) and a deletion nobody
+	// what an earlier club wrote (contracts.Legacy) and a deletion nobody
 	// stages is a deletion nobody commits — the stale file would come straight
 	// back on the next clone. This is a fresh clone of main, so the only thing
 	// there is to stage is what Install just did.
@@ -367,7 +367,7 @@ func ensureIgnore(dir string) error {
 	if body != "" {
 		body += "\n"
 	}
-	body += "# slopball: never sync dependencies or build output\n" + strings.Join(add, "\n") + "\n"
+	body += "# club: never sync dependencies or build output\n" + strings.Join(add, "\n") + "\n"
 	return os.WriteFile(path, []byte(body), 0o644)
 }
 
@@ -410,32 +410,32 @@ func oneLine(s string) string {
 	return s
 }
 
-// sharedSetupRules are the constraints both modes need. slopball owns the
+// sharedSetupRules are the constraints both modes need. club owns the
 // commit, so the agent must never touch git — a `git init` or a stray commit in
 // the temp clone would land something nobody reviewed on main.
 const sharedSetupRules = `
 Hard rules:
-- Work IN THE CURRENT DIRECTORY. It is an existing git work tree (it has dotfiles). Do not create a subdirectory for the project, do not run "git init", and NEVER run any git command — slopball makes the commit.
-- Do not create, edit or delete anything under .slopball/.
+- Work IN THE CURRENT DIRECTORY. It is an existing git work tree (it has dotfiles). Do not create a subdirectory for the project, do not run "git init", and NEVER run any git command — club makes the commit.
+- Do not create, edit or delete anything under .club/.
 - Leave the project runnable: a dev script in package.json (or the ecosystem's equivalent) and a committed lockfile.
 - Do not start a dev server or any other long-running process. Install dependencies if you need to, but exit when the files are written.
 - Dependencies and build output are already gitignored; leave those rules alone.
-- The dev server must listen on port 3000 and accept connections from outside localhost — slopball's box and session-network splice dial 127.0.0.1:3000, not the framework default. Next.js and similar stacks honor PORT=3000; Vite does NOT — set server.port to 3000 and server.host to true in vite.config (or the ecosystem equivalent).
-- Teammates open the dev server through slopball, so it will see requests with a Host header like "<pin>.slopball.localhost:<port>" rather than localhost. If the framework gates on that (Next.js allowedDevOrigins, Vite server.allowedHosts), allow "*.slopball.localhost" in the dev config.`
+- The dev server must listen on port 3000 and accept connections from outside localhost — club's box and session-network splice dial 127.0.0.1:3000, not the framework default. Next.js and similar stacks honor PORT=3000; Vite does NOT — set server.port to 3000 and server.host to true in vite.config (or the ecosystem equivalent).
+- Teammates open the dev server through club, so it will see requests with a Host header like "<pin>.club.localhost:<port>" rather than localhost. If the framework gates on that (Next.js allowedDevOrigins, Vite server.allowedHosts), allow "*.club.localhost" in the dev config.`
 
 func scaffoldPrompt(brief string) string {
-	return fmt.Sprintf(`You are slopball's setup role-agent. Several AI agents are about to build one product together, and the repository is empty. Create the project they will build in, from this brief:
+	return fmt.Sprintf(`You are club's setup role-agent. Several AI agents are about to build one product together, and the repository is empty. Create the project they will build in, from this brief:
 
 %s
 
 Prefer the ecosystem's own generator over hand-writing files (for example: npx create-next-app@latest ., npm create vite@latest ., cargo new --vcs none .). Pick sensible defaults rather than asking questions — nothing can answer an interactive prompt.
 
-The directory has been cleared for you: slopball's own files are held aside so generators that refuse a non-empty directory will run. They come back after this turn, so do not recreate them — if you want to write an AGENTS.md of your own, do, and you will be asked to merge the two.
+The directory has been cleared for you: club's own files are held aside so generators that refuse a non-empty directory will run. They come back after this turn, so do not recreate them — if you want to write an AGENTS.md of your own, do, and you will be asked to merge the two.
 %s`, brief, sharedSetupRules)
 }
 
 func adaptPrompt(brief string) string {
-	return fmt.Sprintf(`You are slopball's setup role-agent. This is someone's EXISTING PROJECT, which they brought into a slopball session. Move it toward this brief:
+	return fmt.Sprintf(`You are club's setup role-agent. This is someone's EXISTING PROJECT, which they brought into a club session. Move it toward this brief:
 
 %s
 

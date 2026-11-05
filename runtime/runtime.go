@@ -15,19 +15,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/devserver"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/netbind"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/devserver"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/netbind"
 )
 
 // SharedEnvPath is the tracked shared runtime config. Host materializes .env from
 // it; clients agree via git (no silent host/client port divergence).
-const SharedEnvPath = ".slopball/runtime.env"
+const SharedEnvPath = ".club/runtime.env"
 
 // ReseedSignal in a push intent authorizes destructive reset/reseed. Never inferred.
-const ReseedSignal = "slopball:reseed"
+const ReseedSignal = "club:reseed"
 
 // Paths that count as "migration files" when they change on main.
 var migrationPrefixes = []string{
@@ -325,7 +325,7 @@ const DevPort = devserver.DefaultPort
 // LocalDevPort is the port the supervised dev process is listening on *on this
 // machine*, which is what the session-network dev holder splices into (plan 41).
 // Always the constant DevPort (ticket 09) — nothing published onto the docker
-// host, and no environment override. A committed PORT= in .slopball/runtime.env
+// host, and no environment override. A committed PORT= in .club/runtime.env
 // never selects the splice target (ticket 21). workDir is kept so call sites
 // stay stable.
 func LocalDevPort(workDir string) (int, string) {
@@ -365,11 +365,11 @@ func Reconcile(ctx context.Context, opt Options, oldHEAD, newHEAD string) (*Resu
 
 	needRestart := false
 
-	// Migration strategy: slopball only *triggers* migration; ordering and
+	// Migration strategy: club only *triggers* migration; ordering and
 	// idempotency are delegated to the stack's own migration tool (`prisma
 	// migrate deploy`, `manage.py migrate`, a project `migrate` script, …),
 	// which is designed to apply pending migrations in order and skip
-	// already-applied ones. slopball's job is "a migration file changed on
+	// already-applied ones. club's job is "a migration file changed on
 	// main → run the tool once." A failure is surfaced to the dev-server log
 	// (below) so the error-watcher (plan 07) can self-heal it, rather than
 	// silently leaving the live DB out of sync with the schema.
@@ -492,13 +492,13 @@ func materializeEnv(workDir string) (bool, error) {
 // error-watcher role (plan 07) can pick it up — self-healing over silent loss.
 func logFailure(dev *devserver.Supervisor, what string, err error) {
 	if dev != nil && dev.Logs != nil {
-		fmt.Fprintf(dev.Logs, "ERROR: slopball runtime %s failed: %v\n", what, err)
+		fmt.Fprintf(dev.Logs, "ERROR: club runtime %s failed: %v\n", what, err)
 	}
 }
 
 func detectMigrate(workDir string) []string {
-	if exists(workDir, ".slopball/migrate") {
-		return []string{filepath.Join(workDir, ".slopball/migrate")}
+	if exists(workDir, ".club/migrate") {
+		return []string{filepath.Join(workDir, ".club/migrate")}
 	}
 	if exists(workDir, "package.json") {
 		b, _ := os.ReadFile(filepath.Join(workDir, "package.json"))
@@ -517,8 +517,8 @@ func detectMigrate(workDir string) []string {
 }
 
 func detectReseed(workDir string) []string {
-	if exists(workDir, ".slopball/reseed") {
-		return []string{filepath.Join(workDir, ".slopball/reseed")}
+	if exists(workDir, ".club/reseed") {
+		return []string{filepath.Join(workDir, ".club/reseed")}
 	}
 	if exists(workDir, "package.json") {
 		b, _ := os.ReadFile(filepath.Join(workDir, "package.json"))

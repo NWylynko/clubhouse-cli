@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/devserver"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/devserver"
 )
 
 // LogSource is the dev server's *watchable* output — stderr the dev server
-// itself produced. Dependency-install noise and slopball's own narration are
+// itself produced. Dependency-install noise and club's own narration are
 // excluded at the source (internal/devserver tags every line by stream and
 // phase), which is what lets the watcher trigger on the stream rather than on a
 // list of magic substrings. It matters that the watcher cannot reach the merged
@@ -122,7 +122,7 @@ func (r *RemoteLogSource) record(page devserver.LogPage) {
 	if page.Missed > 0 {
 		// The server told us it dropped lines rather than pretending it had
 		// not. Say so out loud; deliberately not folded into the watchable
-		// text, which would feed the watcher a line slopball wrote.
+		// text, which would feed the watcher a line club wrote.
 		watcherLog.Warnf("dev-server log stream missed %d line(s) — the watcher is reading an incomplete buffer", page.Missed)
 	}
 	for _, l := range page.Lines {

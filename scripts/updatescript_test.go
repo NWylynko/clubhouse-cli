@@ -10,11 +10,11 @@ import (
 	"testing"
 )
 
-// `slopball update` fetches scripts/update.sh from the site and pipes it into
+// `club update` fetches scripts/update.sh from the site and pipes it into
 // sh, so this script is the whole update mechanism — the binary that runs it is
 // the binary it replaces. Two properties are worth a test and nothing else is:
-// it replaces the slopball you ALREADY HAVE (not a second one under
-// ~/.local/bin, which would leave `slopball --version` reporting the old one
+// it replaces the club you ALREADY HAVE (not a second one under
+// ~/.local/bin, which would leave `club --version` reporting the old one
 // forever), and it reuses install.sh rather than carrying a second copy of the
 // download logic that can drift from the release names.
 //
@@ -32,12 +32,12 @@ import (
 type updateEnv struct {
 	t *testing.T
 	// dir is the sandbox root: dir/stub holds the fake uname+curl, dir/bin is
-	// where the "already installed" slopball lives.
+	// where the "already installed" club lives.
 	dir  string
 	site *httptest.Server
 }
 
-// newUpdateEnv lays down an already-installed slopball whose bytes name the
+// newUpdateEnv lays down an already-installed club whose bytes name the
 // version it is, so a test can tell a replaced binary from an untouched one.
 func newUpdateEnv(t *testing.T, installed string) *updateEnv {
 	t.Helper()
@@ -55,7 +55,7 @@ func newUpdateEnv(t *testing.T, installed string) *updateEnv {
 		"esac\n")
 	writeFakeCurl(t, filepath.Join(env.dir, "stub"), filepath.Join(env.dir, "asked"), "the new %s")
 	if installed != "" {
-		writeExec(t, filepath.Join(env.dir, "bin", "slopball"), installed)
+		writeExec(t, filepath.Join(env.dir, "bin", "club"), installed)
 	}
 
 	// The site: the real install.sh, served the way the worker serves it.
@@ -75,7 +75,7 @@ func newUpdateEnv(t *testing.T, installed string) *updateEnv {
 }
 
 // run executes scripts/update.sh with the sandbox on PATH. extraEnv is how a
-// test drives the `slopball update` path, which passes the running binary's own
+// test drives the `club update` path, which passes the running binary's own
 // directory rather than letting the script resolve one.
 func (e *updateEnv) run(extraEnv ...string) (string, error) {
 	e.t.Helper()
@@ -83,7 +83,7 @@ func (e *updateEnv) run(extraEnv ...string) (string, error) {
 	cmd.Env = append(os.Environ(),
 		"PATH="+filepath.Join(e.dir, "stub")+string(os.PathListSeparator)+
 			filepath.Join(e.dir, "bin")+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"SLOPBALL_SITE="+e.site.URL,
+		"CLUB_SITE="+e.site.URL,
 		// So a script that ignored the resolved location and fell back to the
 		// default would install somewhere this test can see rather than into
 		// the developer's real ~/.local/bin.
@@ -94,21 +94,21 @@ func (e *updateEnv) run(extraEnv ...string) (string, error) {
 	return string(out), err
 }
 
-// installedBytes is what sits at the sandbox's slopball right now.
+// installedBytes is what sits at the sandbox's club right now.
 func (e *updateEnv) installedBytes() string {
 	e.t.Helper()
-	b, err := os.ReadFile(filepath.Join(e.dir, "bin", "slopball"))
+	b, err := os.ReadFile(filepath.Join(e.dir, "bin", "club"))
 	if err != nil {
-		e.t.Fatalf("nothing is installed at the sandbox's bin/slopball: %v", err)
+		e.t.Fatalf("nothing is installed at the sandbox's bin/club: %v", err)
 	}
 	return string(b)
 }
 
-// TestUpdateShReplacesTheSlopballAlreadyOnPath is the whole point of a separate
-// updater: install.sh installs to ~/.local/bin, and a machine whose slopball
+// TestUpdateShReplacesTheClubAlreadyOnPath is the whole point of a separate
+// updater: install.sh installs to ~/.local/bin, and a machine whose club
 // lives anywhere else would end up with two of them and keep running the old
 // one. The update has to land on the binary that is actually being used.
-func TestUpdateShReplacesTheSlopballAlreadyOnPath(t *testing.T) {
+func TestUpdateShReplacesTheClubAlreadyOnPath(t *testing.T) {
 	requireSh(t)
 	requireCurl(t)
 	env := newUpdateEnv(t, "#!/bin/sh\necho the old one\n")
@@ -116,18 +116,18 @@ func TestUpdateShReplacesTheSlopballAlreadyOnPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update.sh failed: %v\n%s", err, out)
 	}
-	if got := env.installedBytes(); !strings.Contains(got, "the new slopball-linux-amd64") {
-		t.Fatalf("the slopball on PATH was not replaced — it is still %q\n%s", got, out)
+	if got := env.installedBytes(); !strings.Contains(got, "the new club-linux-amd64") {
+		t.Fatalf("the club on PATH was not replaced — it is still %q\n%s", got, out)
 	}
 	// And nothing was installed beside it under the install.sh default.
-	if _, err := os.Stat(filepath.Join(env.dir, "home", ".local", "bin", "slopball")); err == nil {
-		t.Fatalf("update.sh installed a SECOND slopball under ~/.local/bin instead of replacing the one on PATH\n%s", out)
+	if _, err := os.Stat(filepath.Join(env.dir, "home", ".local", "bin", "club")); err == nil {
+		t.Fatalf("update.sh installed a SECOND club under ~/.local/bin instead of replacing the one on PATH\n%s", out)
 	}
 }
 
-// TestUpdateShPrefersTheDirectoryItIsGiven: `slopball update` resolves its own
+// TestUpdateShPrefersTheDirectoryItIsGiven: `club update` resolves its own
 // executable and hands that directory over, because a binary invoked by
-// absolute path is not on PATH at all — and updating "the slopball on PATH"
+// absolute path is not on PATH at all — and updating "the club on PATH"
 // would then replace a different one, or none.
 func TestUpdateShPrefersTheDirectoryItIsGiven(t *testing.T) {
 	requireSh(t)
@@ -137,32 +137,32 @@ func TestUpdateShPrefersTheDirectoryItIsGiven(t *testing.T) {
 	if err := os.MkdirAll(elsewhere, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	out, err := env.run("SLOPBALL_INSTALL_DIR=" + elsewhere)
+	out, err := env.run("CLUB_INSTALL_DIR=" + elsewhere)
 	if err != nil {
 		t.Fatalf("update.sh failed: %v\n%s", err, out)
 	}
-	body, err := os.ReadFile(filepath.Join(elsewhere, "slopball"))
+	body, err := os.ReadFile(filepath.Join(elsewhere, "club"))
 	if err != nil {
 		t.Fatalf("update.sh ignored the directory it was given: %v\n%s", err, out)
 	}
-	if !strings.Contains(string(body), "the new slopball-linux-amd64") {
+	if !strings.Contains(string(body), "the new club-linux-amd64") {
 		t.Fatalf("the given directory got %q", body)
 	}
 	if got := env.installedBytes(); strings.Contains(got, "the new") {
-		t.Fatalf("update.sh replaced the slopball on PATH as well as the one it was told about")
+		t.Fatalf("update.sh replaced the club on PATH as well as the one it was told about")
 	}
 }
 
 // TestUpdateShRefusesWhenThereIsNothingToUpdate: an update that silently
-// performs a first install would put slopball somewhere the user never chose,
-// and report success for a machine that still has no slopball on PATH.
+// performs a first install would put club somewhere the user never chose,
+// and report success for a machine that still has no club on PATH.
 func TestUpdateShRefusesWhenThereIsNothingToUpdate(t *testing.T) {
 	requireSh(t)
 	requireCurl(t)
 	env := newUpdateEnv(t, "")
 	out, err := env.run()
 	if err == nil {
-		t.Fatalf("update.sh updated a machine with no slopball installed:\n%s", out)
+		t.Fatalf("update.sh updated a machine with no club installed:\n%s", out)
 	}
 	if !strings.Contains(out, "install.sh") {
 		t.Fatalf("the refusal must point at the installer instead:\n%s", out)
@@ -175,7 +175,7 @@ func TestUpdateShRefusesWhenThereIsNothingToUpdate(t *testing.T) {
 // own — the proof is that the script's text never names an asset or a platform.
 func TestUpdateShFetchesTheInstallerRatherThanCopyingIt(t *testing.T) {
 	body := readRepoFile(t, "scripts/update.sh")
-	for _, forbidden := range []string{"darwin", "aarch64", "x86_64", "slopball-linux", "releases/latest"} {
+	for _, forbidden := range []string{"darwin", "aarch64", "x86_64", "club-linux", "releases/latest"} {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("update.sh names %q — the platform mapping and the release lookup live in install.sh, and a second copy is what installer_test.go exists to prevent", forbidden)
 		}

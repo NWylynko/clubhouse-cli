@@ -1,4 +1,4 @@
-module github.com/nwylynko/slopball-cli
+module github.com/nwylynko/clubhouse-cli
 
 go 1.26.5
 

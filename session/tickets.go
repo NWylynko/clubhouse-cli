@@ -7,7 +7,7 @@ import (
 )
 
 // RelayTicketsPath is the on-disk cache of Ed25519 session-network tickets
-// (abuse-surface ticket 17). A cold `slopball box run` process has membership
+// (abuse-surface ticket 17). A cold `club box run` process has membership
 // on disk but no in-memory Client cache — without this file it cannot connect
 // to a ticket-requiring relay until a member cycle runs.
 func (p Paths) RelayTickets() string { return filepath.Join(p.Root, "relay-tickets.json") }

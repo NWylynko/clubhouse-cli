@@ -1,4 +1,4 @@
-# What you are trusting when you run slopball
+# What you are trusting when you run Clubhouse
 
 This is for somebody deciding whether to run this on their machine or point
 their teammates at it. Every claim here is about the code in this repo, which
@@ -42,8 +42,8 @@ never your backup (see the mirror below).
 If that is not acceptable, there are two outs, and both keep everything else
 the same:
 
-- **`slopball box add <user@host>`** — a BYO box on a machine you control. It
-  pulls `ghcr.io/nwylynko/slopball-box:<your-version>`, whose Dockerfile is in
+- **`club box add <user@host>`** — a BYO box on a machine you control. It
+  pulls `ghcr.io/nwylynko/clubhouse-box:<your-version>`, whose Dockerfile is in
   this repo ([`box/`](./box/)), so you can rebuild the image you pull and
   compare. (That proves what *your* box runs; it proves nothing about what the
   operator deploys — don't spend it on the managed claim.)
@@ -60,7 +60,7 @@ Telemetry records a lot, verbatim, forever, and the page that says exactly what
 is [`docs/what-is-recorded.md`](./docs/what-is-recorded.md) — copied here
 byte-for-byte from the private repo, where a test holds each of its claims to
 the shipped code, and where a second test keeps this copy identical to it.
-The short version: **a laptop records nothing until a human runs `slopball
+The short version: **a laptop records nothing until a human runs `Clubhouse
 telemetry on`; a managed box always records; and what is recorded includes
 credentials and full request bodies with no redaction — read access to that
 database is read access to every session's code.**
@@ -70,7 +70,7 @@ database is read access to every session's code.**
 Two things run on your machine that you did not type:
 
 - **The dev lease** runs the repo's own committed install and dev commands
-  (`.slopball/run.json` in the project — you can read it) whenever your
+  (`.club/run.json` in the project — you can read it) whenever your
   machine holds the dev role.
 - **The conductor** runs the harness CLI you picked (Claude Code, Codex,
   Cursor) with its permission prompts turned off — Claude Code is invoked with
@@ -78,7 +78,7 @@ Two things run on your machine that you did not type:
   ([`harness/harness.go`](./harness/harness.go)) — so it can merge branches
   and fix breakage without a human clicking through. It runs on the host, so
   on a managed box that is the box; when a laptop hosts, it is that laptop.
-  Intelligence is always your own harness subscription; slopball never holds a
+  Intelligence is always your own harness subscription; Clubhouse never holds a
   provider API token.
 
 ## What is not in this repo

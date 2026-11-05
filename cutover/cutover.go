@@ -8,9 +8,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/syncengine"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/syncengine"
 )
 
 var log = logx.New("cutover")
@@ -20,7 +20,7 @@ type Options struct {
 	PIN         string
 	NewDialAddr string // box / new host git URL
 	LogsURL     string // optional /logs sibling
-	OverlayAddr string // empty → slop-<pin>.host
+	OverlayAddr string // empty → club-<pin>.host
 	Control     *controlplane.Client
 	// Generation is the writer's current generation (required).
 	Generation  int

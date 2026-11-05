@@ -54,7 +54,7 @@ const RosterLimit = 10
 // Authorization header stays the conventional shape. The id is not a secret: it
 // already appears in request paths and in the session document, so a proxy log
 // keeping it costs nothing. The secret never goes anywhere but this Bearer.
-const MemberHeader = "X-Slopball-Member"
+const MemberHeader = "X-Club-Member"
 
 // Endpoint is one announced address for a session.
 type Endpoint struct {
@@ -101,7 +101,7 @@ type Member struct {
 	// State is pending | admitted | left (plan 44). Blank on older rows means
 	// admitted — every member that existed before admission was real.
 	State string `json:"state,omitempty"`
-	// Version is the build this member's slopball is running, as it presented
+	// Version is the build this member's club is running, as it presented
 	// itself in VersionHeader on its last knock or member cycle (plan 48). Blank
 	// means a client that predates the header, or one that has not talked to this
 	// control plane since it started asking — never "current". It is what makes
@@ -216,7 +216,7 @@ const (
 
 // Box providers.
 const (
-	BoxProviderBYO    = "byo"    // `slopball box add <ssh-target>` — someone else's machine
+	BoxProviderBYO    = "byo"    // `club box add <ssh-target>` — someone else's machine
 	BoxProviderDocker = "docker" // the control plane's own machine
 	// BoxProviderCloudflare is a Cloudflare Container, spawned by the box
 	// worker because Container instances can only be created from Worker code.
@@ -225,7 +225,7 @@ const (
 
 // BoxFacts is a session's box: what it is, who made it, and — since plan 37 —
 // how far along it is. One record covers both tiers, which is what keeps the
-// monitor, the console and slopdebug from having to know which one they are
+// monitor, the console and clubdebug from having to know which one they are
 // looking at.
 type BoxFacts struct {
 	Target    string `json:"target,omitempty"`
@@ -504,7 +504,7 @@ type ClaimRequest struct {
 	// behind — the one authorized promotion (plan 25). A fresh cloud box has
 	// generation 0 by construction, so without this it is indistinguishable from
 	// an old laptop rebooting and gets demoted to a client. Set only by
-	// `slopball box add` (via the hidden `--takeover`), never by a plain host
+	// `club box add` (via the hidden `--takeover`), never by a plain host
 	// start, so the plan-24 rule "a departed host never reclaims the role"
 	// stays the default.
 	Takeover bool `json:"takeover,omitempty"`
@@ -678,6 +678,6 @@ type Health struct {
 
 // ErrLeaseHeld surfaces a lost placement race: the service is held by a live
 // owner. Callers stand down and report who holds it. It lives with the wire
-// types because clients match on it (`slopball take`), and matching on it must
+// types because clients match on it (`club take`), and matching on it must
 // not drag a database driver in.
 var ErrLeaseHeld = errors.New("lease held")

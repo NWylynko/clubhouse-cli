@@ -1,4 +1,4 @@
-// Package session owns slopball's on-disk layout for a session and the metadata
+// Package session owns club's on-disk layout for a session and the metadata
 // that describes this machine's role in it. It is the "session/PIN + join"
 // vertical's foundation; the join daemon, git server, and mirror build on these
 // paths. See MASTERPLAN §4.4 (canonical is a relocatable artifact) and §5.8 (the
@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/nwylynko/slopball-cli/detect"
+	"github.com/nwylynko/clubhouse-cli/detect"
 )
 
 // Role is the part a machine plays in a session. A laptop host is both at once
@@ -22,16 +22,16 @@ const (
 	RoleClient Role = "client"
 )
 
-// Home is slopball's root state directory. Override with $SLOPBALL_HOME (used by
+// Home is club's root state directory. Override with $CLUB_HOME (used by
 // tests and by anyone keeping session state off the default path).
 func Home() string {
-	if h := os.Getenv("SLOPBALL_HOME"); h != "" {
+	if h := os.Getenv("CLUB_HOME"); h != "" {
 		return h
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".slopball")
+		return filepath.Join(home, ".club")
 	}
-	return ".slopball"
+	return ".club"
 }
 
 // Paths is the on-disk layout for one session, keyed by PIN. The three working
@@ -73,7 +73,7 @@ type Session struct {
 	Branch          string `json:"branch"`          // this client's dev branch (empty for a pure host)
 	HostOverlayAddr string `json:"hostOverlayAddr"` // where the session git server lives on the overlay
 	// MemberID is this machine's control-plane member id. Service leases are
-	// held by member (plan 30), so a verb like `slopball take` needs to know
+	// held by member (plan 30), so a verb like `club take` needs to know
 	// which member this machine is without re-joining to find out.
 	MemberID   string         `json:"memberId,omitempty"`
 	Capability detect.Profile `json:"capability,omitempty"`

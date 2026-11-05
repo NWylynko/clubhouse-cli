@@ -1,4 +1,4 @@
-# slopball — next version
+# club — next version
 
 DERIVED by `make next-version` from .wire-changes/ and the last tag. Nothing
 here ran: this tool never tags and never pushes, the same way

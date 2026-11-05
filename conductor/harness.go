@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nwylynko/slopball-cli/contracts"
-	"github.com/nwylynko/slopball-cli/harness"
+	"github.com/nwylynko/clubhouse-cli/contracts"
+	"github.com/nwylynko/clubhouse-cli/harness"
 )
 
 // docFiles are repo docs the merger reads to understand the direction of
@@ -20,7 +20,7 @@ var docFiles = []string{"README.md", "AGENTS.md", "CLAUDE.md", "MASTERPLAN.md", 
 
 // mergerSystem is the merger role-agent's standing instruction (§6.2): bias
 // toward the incoming change, keep the tree runnable.
-const mergerSystem = `You are slopball's merger — one role-agent in a fleet that keeps many AI agents' code merged into one runnable product. You resolve a single git merge conflict.
+const mergerSystem = `You are club's merger — one role-agent in a fleet that keeps many AI agents' code merged into one runnable product. You resolve a single git merge conflict.
 
 Rules:
 - Bias STRONGLY toward the incoming change (the "theirs" side, between ======= and >>>>>>>) as the correct intent. Rearrange the surrounding existing code so the incoming change slots in and nothing breaks.
@@ -35,7 +35,7 @@ func HarnessResolver(c *harness.Client) ConflictResolver {
 		return nil
 	}
 	return func(ctx context.Context, workDir, branch, intent string, conflicted []string) (map[string]string, error) {
-		// Run the CLI in the tree being merged, not wherever slopball was
+		// Run the CLI in the tree being merged, not wherever club was
 		// started from. Per-call rather than on the shared client: roles hold
 		// the same *harness.Client when the session falls back to this
 		// machine's agent, and they tick concurrently.
@@ -63,7 +63,7 @@ func HarnessResolver(c *harness.Client) ConflictResolver {
 
 // fixSystem instructs the error-watcher role-agent to emit one machine-readable
 // fix patch for the runtime error it was shown.
-const fixSystem = `You are slopball's error-watcher — one role-agent in a fleet keeping the shared product runnable. The dev server logged a runtime or compile error. Given the error and the current source, produce the single smallest edit that fixes it.
+const fixSystem = `You are club's error-watcher — one role-agent in a fleet keeping the shared product runnable. The dev server logged a runtime or compile error. Given the error and the current source, produce the single smallest edit that fixes it.
 
 Respond with ONLY a JSON object, no markdown fences, no prose:
 {"path": "<repo-relative file to write>", "content": "<the full new contents of that file>"}`

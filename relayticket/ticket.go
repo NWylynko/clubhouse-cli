@@ -2,7 +2,7 @@
 // verifies offline (abuse-surface ticket 17 / plan 45).
 //
 // The control plane mints; the relay holds only the public key and can never
-// mint. That is the property that lets slopball operate — or delegate — relays
+// mint. That is the property that lets club operate — or delegate — relays
 // without trusting them, the same reasoning that made the relay carry
 // ciphertext only. A shared HMAC secret would hand every relay the minting
 // key and is deliberately not an option here.

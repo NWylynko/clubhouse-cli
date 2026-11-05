@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/canonical"
-	"github.com/nwylynko/slopball-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
 )
 
 // HTTPHealth probes the dev server the way a person checking the demo link
@@ -60,7 +60,7 @@ func SessionDevURL(ctx context.Context, client *controlplane.Client, pin string,
 	if client == nil {
 		return ""
 	}
-	// Resolved, not raw: the health probe DIALS this, and a `slop://` address
+	// Resolved, not raw: the health probe DIALS this, and a `club://` address
 	// probed literally reads as permanently down (plan 40).
 	url, err := client.EndpointURL(ctx, pin, controlplane.EndpointDev)
 	if err != nil {

@@ -11,23 +11,23 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/nwylynko/slopball-cli/boxexec"
-	"github.com/nwylynko/slopball-cli/conductor"
-	"github.com/nwylynko/slopball-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/boxexec"
+	"github.com/nwylynko/clubhouse-cli/conductor"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
 	"github.com/spf13/cobra"
 )
 
 // requireSessionBox is the shared gate for session-scoped box verbs.
 func requireSessionBox(ctx context.Context, client *controlplane.Client, pin string) (controlplane.BoxFacts, error) {
 	if pin == "" {
-		return controlplane.BoxFacts{}, fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set SLOPBALL_PIN")
+		return controlplane.BoxFacts{}, fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set CLUB_PIN")
 	}
 	sess, err := client.Session(ctx, pin)
 	if err != nil {
 		return controlplane.BoxFacts{}, err
 	}
 	if sess.Box == nil {
-		return controlplane.BoxFacts{}, fmt.Errorf("session %s has no box — provision one with `slopball --box` or `slopball box add`", pin)
+		return controlplane.BoxFacts{}, fmt.Errorf("session %s has no box — provision one with `club --box` or `club box add`", pin)
 	}
 	b := *sess.Box
 	switch b.State {
@@ -59,14 +59,14 @@ func remoteBoxArgv(cmd *cobra.Command, args []string) ([]string, error) {
 		return remote, nil
 	}
 	if len(args) == 0 {
-		return nil, fmt.Errorf("usage: slopball box run <command>... (optional `--` before flagged commands)")
+		return nil, fmt.Errorf("usage: club box run <command>... (optional `--` before flagged commands)")
 	}
 	return args, nil
 }
 
 func runSessionBoxLogs(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
-		return fmt.Errorf("slopball box logs takes no host argument")
+		return fmt.Errorf("club box logs takes no host argument")
 	}
 	pin := resolvePin(cmd)
 	ctx := context.Background()
@@ -118,7 +118,7 @@ func runSessionBoxRun(cmd *cobra.Command, args []string) error {
 
 func runSessionBoxRm(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
-		return fmt.Errorf("slopball box rm takes no host argument")
+		return fmt.Errorf("club box rm takes no host argument")
 	}
 	yes, _ := cmd.Flags().GetBool("yes")
 	if !yes {

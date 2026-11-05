@@ -25,9 +25,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/devserver"
-	"github.com/nwylynko/slopball-cli/reach"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/devserver"
+	"github.com/nwylynko/clubhouse-cli/reach"
 )
 
 // Options is everything the console needs that it cannot read from the session.
@@ -84,7 +84,7 @@ type (
 		Role string
 		Text string
 	}
-	// LogMsg is one line slopball itself wrote (a diverted logx write). A line
+	// LogMsg is one line club itself wrote (a diverted logx write). A line
 	// from a fleet role goes to that role's tab; everything else joins the
 	// feed, because output that used to reach the terminal must not simply
 	// vanish behind an alt-screen.
@@ -94,7 +94,7 @@ type (
 	}
 	// DevURLMsg is the dev server's address as something this machine can
 	// actually open — resolved through controlplane.EndpointURL, because on the
-	// session network the published endpoint is `slop://<pin>/dev/` and a URL
+	// session network the published endpoint is `club://<pin>/dev/` and a URL
 	// printed for a human to click IS a dial, just with a slower dialer.
 	DevURLMsg string
 	// ErrorMsg is one feed source's outcome, sent EVERY tick rather than only
@@ -526,7 +526,7 @@ func (m *Model) dashboard() string {
 	var b strings.Builder
 	join := "minting session…"
 	if m.opt.PIN != "" {
-		join = "slopball join " + m.opt.PIN
+		join = "club join " + m.opt.PIN
 	}
 	fmt.Fprintf(&b, "\n  %s\n\n", stylePIN.Render(join))
 
@@ -566,7 +566,7 @@ func (m *Model) dashboard() string {
 	}
 	if m.opt.WorkPath != "" {
 		fmt.Fprintf(&b, "  workspace %s\n", m.opt.WorkPath)
-		fmt.Fprintf(&b, "            slopball open — new terminal\n")
+		fmt.Fprintf(&b, "            club open — new terminal\n")
 	}
 	if url := m.devURL; url != "" {
 		fmt.Fprintf(&b, "  site      %s\n", url)

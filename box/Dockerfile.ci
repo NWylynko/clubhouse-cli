@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
-# slopball cloud box — CI / published image (plan 23).
+# club cloud box — CI / published image (plan 23).
 # Multi-stage, buildx-driven: each arch compiles its own static binary.
 # Runtime stage matches the --build-local Dockerfile (debian + node).
 #
 #   docker buildx build --platform linux/amd64,linux/arm64 \
 #     -f internal/box/Dockerfile.ci \
 #     --build-arg VERSION=1.2.3 --build-arg REVISION=$(git rev-parse HEAD) \
-#     -t ghcr.io/nwylynko/slopball-box:1.2.3 --push .
+#     -t ghcr.io/nwylynko/clubhouse-box:1.2.3 --push .
 
 FROM --platform=$BUILDPLATFORM golang:1.26 AS build
 ARG TARGETOS
@@ -42,8 +42,8 @@ ARG VERSION=0.0.0-dev
 # recompiling every dependency (14s → ~2s). They are mounts, not layers, so
 # nothing they hold reaches the image.
 # BOTH stamps, because they are two variables and the box needs both. cli.Version
-# is what `slopball --version` reports; controlplane.ClientVersion is what rides
-# X-Slopball-Version on every request the box makes, and its package default
+# is what `club --version` reports; controlplane.ClientVersion is what rides
+# X-Club-Version on every request the box makes, and its package default
 # (0.0.0-dev) is below every floor, fail-closed. Only cli.Version was here until
 # 2026-08-20, so every published image knocked as a client too old for any real
 # floor — and the drain check cannot see it, because `admin versions` answers for
@@ -52,8 +52,8 @@ ARG VERSION=0.0.0-dev
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
-    go build -ldflags "-s -w -X github.com/nwylynko/slopball-cli/cli.Version=${VERSION} -X github.com/nwylynko/slopball-cli/controlplane.ClientVersion=${VERSION}" \
-    -o /out/slopball ./cmd/slopball
+    go build -ldflags "-s -w -X github.com/nwylynko/clubhouse-cli/cli.Version=${VERSION} -X github.com/nwylynko/clubhouse-cli/controlplane.ClientVersion=${VERSION}" \
+    -o /out/club ./cmd/club
 
 FROM debian:trixie
 
@@ -75,22 +75,22 @@ RUN apt-get update \
 ARG VERSION=0.0.0-dev
 ARG REVISION=unknown
 
-LABEL org.opencontainers.image.title="slopball-box" \
-      org.opencontainers.image.description="slopball cloud dev box — hosts a session canonical and supervises the dev server" \
+LABEL org.opencontainers.image.title="clubhouse-box" \
+      org.opencontainers.image.description="Clubhouse cloud dev box — hosts a session canonical and supervises the dev server" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
-      org.opencontainers.image.source="https://github.com/nwylynko/slopball-cli"
+      org.opencontainers.image.source="https://github.com/nwylynko/clubhouse-cli"
 
-COPY --from=build /out/slopball /usr/local/bin/slopball
+COPY --from=build /out/club /usr/local/bin/club
 # Smoke-test the binary in the runtime image and assert it carries the version
 # this tag claims — the image the box pulls is the one the drift guard compares.
-RUN chmod +x /usr/local/bin/slopball \
- && slopball --version \
- && slopball --version | grep -qF "${VERSION}"
+RUN chmod +x /usr/local/bin/club \
+ && club --version \
+ && club --version | grep -qF "${VERSION}"
 
-# State lives at $HOME/.slopball (session.Home fallback). docker run sets
-# HOME=/home/slopball for uid 1000; do not bake SLOPBALL_HOME here — that used
-# to pin /root/.slopball and break non-root containment (ticket 09).
-WORKDIR /home/slopball
-ENTRYPOINT ["slopball"]
+# State lives at $HOME/.club (session.Home fallback). docker run sets
+# HOME=/home/club for uid 1000; do not bake CLUB_HOME here — that used
+# to pin /root/.club and break non-root containment (ticket 09).
+WORKDIR /home/club
+ENTRYPOINT ["club"]
 CMD ["--help"]

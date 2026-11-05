@@ -1,9 +1,9 @@
 // Package wirechanges reads the pending wire-change ledger — the
-// `.wire-changes/` entries an agent files when slopball's wire surface moves
+// `.wire-changes/` entries an agent files when club's wire surface moves
 // (plan 48 step 1).
 //
 // One entry is one file, one class, and one sentence written from an OLD
-// CLIENT'S point of view: the reader who matters is the copy of slopball
+// CLIENT'S point of view: the reader who matters is the copy of club
 // somebody installed last week and will not rebuild. Entries are PENDING until
 // a tag consumes them — `make next-version` (step 7) folds the sentences into
 // CHANGELOG.md verbatim and empties the folder, the same lifecycle this repo
@@ -20,7 +20,7 @@
 // `service.ClientVersionFloor`, which is service code in the private repo (ADR
 // 0006 decision 0: the floor is the deployment's own, never config and never
 // this module's). That repo pairs the two when it bumps its `require
-// github.com/nwylynko/slopball-cli` pin, reading the floors out of this repo's
+// github.com/nwylynko/clubhouse-cli` pin, reading the floors out of this repo's
 // CHANGELOG.md — which is why the changelog prints them.
 package wirechanges
 

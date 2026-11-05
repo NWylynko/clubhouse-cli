@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/internal/nextversion"
-	"github.com/nwylynko/slopball-cli/internal/wirechanges"
+	"github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/internal/nextversion"
+	"github.com/nwylynko/clubhouse-cli/internal/wirechanges"
 )
 
 const repoRoot = "../.."
@@ -341,7 +341,7 @@ func TestTheLedgerAsItStandsTodayDerivesAMinor(t *testing.T) {
 // Bundled git is the only git this repo may run (git.TestNoBareGitShellouts), so
 // the check is on git.Run/git.Cmd.Run, which are the only ways to run one.
 func TestTheDerivationRunsNoWritingGitCommand(t *testing.T) {
-	for _, name := range []string{"nextversion.go", "render.go", "../../cmd/slopnextversion/main.go"} {
+	for _, name := range []string{"nextversion.go", "render.go", "../../cmd/clubnextversion/main.go"} {
 		body, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
@@ -367,7 +367,7 @@ func TestTheMakeTargetsAreWired(t *testing.T) {
 	for _, want := range []string{
 		"next-version:",
 		"next-version-consume:",
-		"./cmd/slopnextversion",
+		"./cmd/clubnextversion",
 	} {
 		if !strings.Contains(mk, want) {
 			t.Errorf("the Makefile has no %q — `make next-version` is the deliverable", want)
@@ -487,7 +487,7 @@ func itoa(n int) string {
 // THE CROSS-REPO HANDOFF (plan 49 step 4). A breaking entry's `floor:` is the
 // oldest client that still works, and what finally ENFORCES it is
 // service.ClientVersionFloor — a constant in the private services repo, which
-// bumps its `require github.com/nwylynko/slopball-cli` pin and then has to
+// bumps its `require github.com/nwylynko/clubhouse-cli` pin and then has to
 // discover which floors that pin dragged in. The pending ledger cannot tell it:
 // entries are consumed at tag time, so by the time a version is pinnable its
 // entries are gone.

@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/nwylynko/slopball-cli/box"
-	"github.com/nwylynko/slopball-cli/conductor"
+	"github.com/nwylynko/clubhouse-cli/box"
+	"github.com/nwylynko/clubhouse-cli/conductor"
 	"github.com/spf13/cobra"
 )
 

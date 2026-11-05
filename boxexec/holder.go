@@ -10,8 +10,8 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/sessionnet"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/sessionnet"
 )
 
 // Service is the session-network service name for box command execution.
@@ -145,7 +145,7 @@ func (h *Holder) run(ctx context.Context, conn net.Conn, argv []string) error {
 	// Wait closes the pipes those return as soon as the process exits, and Go
 	// says outright that it is "incorrect to call Wait before all reads from
 	// the pipe have completed". Reading them on their own goroutines alongside
-	// Wait lost that race often enough to be a real defect: `slopball box run`
+	// Wait lost that race often enough to be a real defect: `club box run`
 	// returned the correct exit status with no output, on a loaded box, which
 	// is exactly when somebody is running a command to find out what broke.
 	//

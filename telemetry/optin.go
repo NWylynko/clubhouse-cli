@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nwylynko/slopball-cli/session"
+	"github.com/nwylynko/clubhouse-cli/session"
 )
 
 // Telemetry is OFF by default on a machine somebody owns, and that is not
@@ -17,7 +17,7 @@ import (
 //
 // The setting follows who owns the MACHINE, not what the process is:
 //
-//   - a laptop records nothing until a human types `slopball telemetry on`;
+//   - a laptop records nothing until a human types `club telemetry on`;
 //   - a MANAGED box always records — our container on our docker host, and the
 //     one machine in a session no laptop's console fully sees (it holds
 //     canonical, supervises the dev server and produces /logs), so defaulting
@@ -32,9 +32,9 @@ const (
 	// owner decided. It is not operator configuration and not a flag — a
 	// container has no human to ask, so the machine that provisioned it answers
 	// on its behalf (AGENTS.md's third non-operator class).
-	EnvMode = "SLOPBALL_TELEMETRY"
+	EnvMode = "CLUB_TELEMETRY"
 
-	// settingKey is where the decision lives in ~/.slopball/defaults.json.
+	// settingKey is where the decision lives in ~/.club/defaults.json.
 	settingKey = "telemetry"
 )
 
@@ -58,11 +58,11 @@ func Resolve() (on bool, why string) {
 	}
 	switch readSetting() {
 	case ModeOn:
-		return true, "on — you turned it on with `slopball telemetry on` (this machine)"
+		return true, "on — you turned it on with `club telemetry on` (this machine)"
 	case ModeOff:
-		return false, "off — you turned it off with `slopball telemetry off` (this machine)"
+		return false, "off — you turned it off with `club telemetry off` (this machine)"
 	default:
-		return false, "off — the default, on every machine, until somebody runs `slopball telemetry on`"
+		return false, "off — the default, on every machine, until somebody runs `club telemetry on`"
 	}
 }
 
@@ -77,7 +77,7 @@ func SetMode(on bool) error {
 	return writeSetting(mode)
 }
 
-// defaultsPath is ~/.slopball/defaults.json — the same file the wizard keeps
+// defaultsPath is ~/.club/defaults.json — the same file the wizard keeps
 // this machine's prompt pre-fills in.
 //
 // It shares the file and NOT the ownership: the wizard's entries are
@@ -100,7 +100,7 @@ func readSetting() string {
 }
 
 // writeSetting merges into whatever is already there, so the wizard's
-// pre-fills survive somebody typing `slopball telemetry on`.
+// pre-fills survive somebody typing `club telemetry on`.
 func writeSetting(mode string) error {
 	if err := os.MkdirAll(session.Home(), 0o755); err != nil {
 		return err

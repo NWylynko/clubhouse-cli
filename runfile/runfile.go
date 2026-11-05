@@ -1,12 +1,12 @@
-// Package runfile owns `.slopball/run.json` — the project's own install and dev
+// Package runfile owns `.club/run.json` — the project's own install and dev
 // commands, committed to canonical main (plan 29).
 //
 // They live in git rather than in a flag on whoever booted, because they are
 // project facts, not machine facts: a host migration (plan 16), a box cutover
 // (plan 25) or plan 30's next `git` lease holder all inherit the same commands
-// with nothing threaded through. Deliberately NOT `.slopball/runtime.env`,
+// with nothing threaded through. Deliberately NOT `.club/runtime.env`,
 // which the runtime reconciler materializes into the app's own `.env` — the dev
-// command is slopball's business, not the application's environment.
+// command is club's business, not the application's environment.
 package runfile
 
 import (
@@ -16,12 +16,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nwylynko/slopball-cli/canonical"
-	sbGit "github.com/nwylynko/slopball-cli/git"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
 )
 
 // Path is where the file lives, relative to the repo root.
-const Path = ".slopball/run.json"
+const Path = ".club/run.json"
 
 // File is the parsed run commands. Empty fields mean "nothing declared", which
 // leaves detection in charge.
@@ -105,7 +105,7 @@ func Commit(ctx context.Context, host *canonical.Host, id sbGit.Identity, instal
 	if host.Remote != "" {
 		src = host.Remote
 	}
-	tmp, err := os.MkdirTemp("", "slopball-runfile-*")
+	tmp, err := os.MkdirTemp("", "clubhouse-runfile-*")
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func Commit(ctx context.Context, host *canonical.Host, id sbGit.Identity, instal
 		strings.TrimSpace(string(existing)) == strings.TrimSpace(string(body)) {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Join(tmp, ".slopball"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmp, ".club"), 0o755); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(tmp, filepath.FromSlash(Path)), body, 0o644); err != nil {

@@ -16,13 +16,13 @@ const (
 	boxCPUs      = "2"
 	boxPIDsLimit = "2048"
 	// Non-root. Numeric so the image does not need a matching passwd entry;
-	// HOME / tmpfs uid match this pair. State lives at $HOME/.slopball
-	// (session.Home fallback) — no separate SLOPBALL_HOME emission.
+	// HOME / tmpfs uid match this pair. State lives at $HOME/.club
+	// (session.Home fallback) — no separate CLUB_HOME emission.
 	boxUser    = "1000:1000"
 	boxUID     = "1000"
 	boxGID     = "1000"
-	boxHome    = "/home/slopball"
-	boxHomeDir = "/home/slopball/.slopball"
+	boxHome    = "/home/club"
+	boxHomeDir = "/home/club/.club"
 )
 
 // appendContainment writes the ticket-22 docker run flags. --read-only is paired

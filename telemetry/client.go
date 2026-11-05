@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/session"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/session"
 )
 
 // The client's logx stream, verbatim (plan 46 ticket 13).
@@ -34,7 +34,7 @@ var (
 
 	// The per-session log is separate from the emitter and separately gated:
 	// it is written for everybody because it never leaves the machine, while
-	// the emitter only exists when a human opted in. `slopball report` is what
+	// the emitter only exists when a human opted in. `club report` is what
 	// later sends it, once, for one session (plan 46 ticket 15).
 	memberLog       *session.ClientLog
 	memberLogUnhook func()
@@ -69,7 +69,7 @@ func UseMember(cfg MemberConfig) {
 	previous, noLocalLog := installMember(cfg, em)
 	previous.Close() // may block, and logs while it does
 	if noLocalLog != nil {
-		logx.New("telemetry").Warnf("%s: no session log on this machine (%v) — `slopball report` will have nothing local to send", cfg.PIN, noLocalLog)
+		logx.New("telemetry").Warnf("%s: no session log on this machine (%v) — `club report` will have nothing local to send", cfg.PIN, noLocalLog)
 	}
 }
 

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nwylynko/slopball-cli/canonical"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/harness"
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/harness"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 // Role names as the session publishes them (firstrun.Plan.Agents).
@@ -67,7 +67,7 @@ type SessionFleet struct {
 // composition the session published (plan 29), falling back to this machine's
 // harness only for roles the session never named.
 //
-// It exists because there are two places a conductor starts — the `slopball
+// It exists because there are two places a conductor starts — the `club
 // conductor` verb and the join daemon that takes the conductor lease over — and
 // they MUST agree. They did not: the daemon hardcoded a lookup that defaults to
 // claude, so a session that elected cursor got a second fleet scaffolding the
@@ -76,7 +76,7 @@ func BuildSessionFleet(ctx context.Context, spec SessionFleetSpec) SessionFleet 
 	log := logx.New("conductor")
 	agents := SessionRoleAgents(ctx, spec.Control, spec.PIN)
 	// Every role's CLI runs in the session work tree. Left unset it would
-	// inherit the slopball process's cwd — an unrelated directory that a
+	// inherit the club process's cwd — an unrelated directory that a
 	// trust-gating CLI will sit and prompt about forever.
 	brainFor := func(role string) *harness.Client {
 		a, ok := agents[role]
@@ -241,7 +241,7 @@ func SessionRoleAgents(ctx context.Context, client *controlplane.Client, pin str
 // endpoint when it has one, else derived from the git URL for older boxes.
 func SessionLogsURL(ctx context.Context, client *controlplane.Client, pin string, host *canonical.Host) string {
 	// Through EndpointURL, never the raw record: on the session network the
-	// published address is `slop://<pin>/git/logs`, and handing that to
+	// published address is `club://<pin>/git/logs`, and handing that to
 	// http.Get is what left the error-watcher silently blind for a whole
 	// session while logging that it was watching (plan 40).
 	if client != nil {

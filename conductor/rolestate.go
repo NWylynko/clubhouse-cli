@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 // StateBoard is what the fleet's roles report into and the publisher reads out:

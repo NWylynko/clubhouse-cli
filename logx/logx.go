@@ -1,11 +1,11 @@
-// Package logx is slopball's leveled, component-tagged logger for the
+// Package logx is club's leveled, component-tagged logger for the
 // long-running host/join loops. The point is operator visibility: when Nick (or
-// a teammate) runs `slopball` or `slopball join` and watches the terminal, they
+// a teammate) runs `club` or `club join` and watches the terminal, they
 // should see what the session is doing — ticks, merges, fetches, pushes — not a
 // silent process.
 //
 // Info is on by default so that activity is visible without extra flags. Debug
-// (per-git-command traces, tick internals) is gated behind SLOPBALL_LOG=debug
+// (per-git-command traces, tick internals) is gated behind CLUB_LOG=debug
 // so a normal terminal stays readable while a deep-dive is one env var away.
 package logx
 
@@ -52,7 +52,7 @@ var (
 )
 
 func init() {
-	switch strings.ToLower(os.Getenv("SLOPBALL_LOG")) {
+	switch strings.ToLower(os.Getenv("CLUB_LOG")) {
 	case "debug", "trace":
 		level = LevelDebug
 	case "info":
@@ -90,7 +90,7 @@ type Sink func(ts time.Time, level, component, message string)
 //
 // There is more than one observer of this stream and they are independent: a
 // machine records telemetry only when a human opted in (plan 46 ticket 12),
-// while the per-session log file `slopball report` reads is written for
+// while the per-session log file `club report` reads is written for
 // everybody, because it never leaves the machine. One slot would have made
 // those two decisions the same decision.
 func AddSink(s Sink) (remove func()) {
@@ -162,7 +162,7 @@ func (l *Logger) emit(lv Level, format string, args ...any) {
 	}
 }
 
-// Debugf logs at debug level (off unless SLOPBALL_LOG=debug).
+// Debugf logs at debug level (off unless CLUB_LOG=debug).
 func (l *Logger) Debugf(format string, args ...any) { l.emit(LevelDebug, format, args...) }
 
 // Infof logs at info level (on by default).

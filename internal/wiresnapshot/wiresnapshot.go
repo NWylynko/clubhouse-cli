@@ -1,5 +1,5 @@
-// Package wiresnapshot generates the golden snapshot of slopball's wire
-// surface — the shapes an already-installed copy of slopball can see (plan 48
+// Package wiresnapshot generates the golden snapshot of club's wire
+// surface — the shapes an already-installed copy of club can see (plan 48
 // step 1).
 //
 // THREE AND A HALF WIRES LIVE HERE, and the missing half is the point of where
@@ -175,14 +175,14 @@ func LoadWireSurface(root string) (string, error) {
 	return string(data), nil
 }
 
-const header = `# slopball wire surface — GENERATED. Do not edit by hand.
+const header = `# club wire surface — GENERATED. Do not edit by hand.
 #
 # Regenerate:  make wire-snapshot
 # Pinned by:   go test ./internal/wiresnapshot/ -run TestWireSurfaceMatchesTheCommittedSnapshot
 # Classify:    .wire-changes/README.md
 #
 # This file exists so that a change to a shape somebody else's already-installed
-# slopball can see cannot land unclassified. Drift here is red, and the failure
+# club can see cannot land unclassified. Drift here is red, and the failure
 # text says what to write. Field order is declaration order; everything else is
 # sorted. The tripwire is SHAPE-ONLY: a behaviour change that breaks an old
 # client without moving a shape is still yours to classify unprompted.

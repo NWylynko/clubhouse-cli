@@ -1,6 +1,6 @@
-// Command slopwire regenerates the committed wire-surface snapshot.
+// Command clubwire regenerates the committed wire-surface snapshot.
 //
-// It reads the source of the four packages that carry slopball's wires and
+// It reads the source of the four packages that carry club's wires and
 // writes internal/wiresnapshot/wire-surface.txt. It dials nothing, holds no
 // credential, and never writes a `.wire-changes/` entry for you — classifying
 // the change is a judgment about somebody else's already-installed client, and
@@ -14,7 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/nwylynko/slopball-cli/internal/wiresnapshot"
+	"github.com/nwylynko/clubhouse-cli/internal/wiresnapshot"
 )
 
 func main() {

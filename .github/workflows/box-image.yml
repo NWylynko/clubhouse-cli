@@ -1,6 +1,6 @@
 name: box-image
 
-# Publish ghcr.io/nwylynko/slopball-box:<version> (multi-arch) on tag.
+# Publish ghcr.io/nwylynko/clubhouse-box:<version> (multi-arch) on tag.
 # Local mirror: `make box-image` / `make box-image PUSH=1`.
 #
 # THIS REPO, not the monorepo (plan 49 phase B). The box image is built from
@@ -37,7 +37,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE: ghcr.io/nwylynko/slopball-box
+  IMAGE: ghcr.io/nwylynko/clubhouse-box
 
 jobs:
   # ⚠️ THE GATE IS A BUILD, NOT THE SUITE, and that is a real reduction.

@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nwylynko/slopball-cli/devserver"
-	"github.com/nwylynko/slopball-cli/runfile"
-	"github.com/nwylynko/slopball-cli/runtime"
-	"github.com/nwylynko/slopball-cli/session"
+	"github.com/nwylynko/clubhouse-cli/devserver"
+	"github.com/nwylynko/clubhouse-cli/runfile"
+	"github.com/nwylynko/clubhouse-cli/runtime"
+	"github.com/nwylynko/clubhouse-cli/session"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +27,7 @@ func newSiteCmd() *cobra.Command {
 		Short: "Print the URL this machine opens the session's dev server on",
 		Long: "Prints the session's site URL and nothing else, so it can be piped.\n\n" +
 			"That site serves main — everyone's merged work, from whichever member\n" +
-			"holds the dev lease. It is NOT your branch: run `slopball dev-setup` for\n" +
+			"holds the dev lease. It is NOT your branch: run `club dev-setup` for\n" +
 			"that.",
 		Args: cobra.NoArgs,
 		RunE: runSiteURL,
@@ -36,7 +36,7 @@ func newSiteCmd() *cobra.Command {
 	return cmd
 }
 
-// runSiteURL reports the address the live slopball process on this machine is
+// runSiteURL reports the address the live club process on this machine is
 // holding, and deliberately has no fallback to resolving the endpoint itself.
 // Resolving stands up a process-lived forwarder (sessionnet.LocalURL) on a
 // port derived from the PIN; the daemon already holds that port, so this
@@ -45,14 +45,14 @@ func newSiteCmd() *cobra.Command {
 func runSiteURL(cmd *cobra.Command, _ []string) error {
 	pin := resolvePin(cmd)
 	if pin == "" {
-		return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set SLOPBALL_PIN")
+		return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set CLUB_PIN")
 	}
 	marker, live := session.LiveHere(pin)
 	if !live {
-		return fmt.Errorf("no live slopball for session %s on this machine — the site URL is held by that process, so start it with `slopball join %s`", pin, pin)
+		return fmt.Errorf("no live club for session %s on this machine — the site URL is held by that process, so start it with `club join %s`", pin, pin)
 	}
 	if marker.DevURL == "" {
-		return fmt.Errorf("session %s has no dev server yet — nothing is serving the project. `slopball monitor` shows what the session is doing", pin)
+		return fmt.Errorf("session %s has no dev server yet — nothing is serving the project. `club monitor` shows what the session is doing", pin)
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), marker.DevURL)
 	return nil
@@ -63,7 +63,7 @@ func newDevSetupCmd() *cobra.Command {
 		Use:   "dev-setup",
 		Short: "Print how to run this branch's dev server on this machine",
 		Long: "Running the project here shows YOUR work, including changes you have not\n" +
-			"synced yet. The session's own site (`slopball site`) serves main, so it\n" +
+			"synced yet. The session's own site (`club site`) serves main, so it\n" +
 			"cannot show you anything you have not published.",
 		Args: cobra.NoArgs,
 		RunE: runDevSetup,
@@ -84,7 +84,7 @@ func runDevSetup(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "Running this project here shows YOUR branch, including work you have not\n"+
-		"synced. The session's site (`slopball site`) serves main — everyone's merged\n"+
+		"synced. The session's site (`club site`) serves main — everyone's merged\n"+
 		"work — so it never shows an unsynced change.\n\n")
 	fmt.Fprintf(out, "  work tree  %s\n", work)
 	fmt.Fprintf(out, "  install    %s%s\n", devSetupValue(install), devFromLabel(installFrom))
@@ -99,7 +99,7 @@ func runDevSetup(cmd *cobra.Command, _ []string) error {
 
 // devSetupCommand applies the same precedence a host start does — the project's
 // committed run.json beats detection — and names which one answered, so an
-// agent can tell a project fact from slopball's guess about one.
+// agent can tell a project fact from club's guess about one.
 func devSetupCommand(declared, detected []string) (cmd []string, from string) {
 	if len(declared) > 0 {
 		return declared, runfile.Path

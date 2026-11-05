@@ -9,19 +9,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/box"
-	"github.com/nwylynko/slopball-cli/canonical"
-	"github.com/nwylynko/slopball-cli/conductor"
-	"github.com/nwylynko/slopball-cli/console"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/firstrun"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/harness"
-	"github.com/nwylynko/slopball-cli/hoststart"
-	"github.com/nwylynko/slopball-cli/joindaemon"
-	"github.com/nwylynko/slopball-cli/runfile"
-	"github.com/nwylynko/slopball-cli/session"
-	"github.com/nwylynko/slopball-cli/trust"
+	"github.com/nwylynko/clubhouse-cli/box"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	"github.com/nwylynko/clubhouse-cli/conductor"
+	"github.com/nwylynko/clubhouse-cli/console"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/firstrun"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/harness"
+	"github.com/nwylynko/clubhouse-cli/hoststart"
+	"github.com/nwylynko/clubhouse-cli/joindaemon"
+	"github.com/nwylynko/clubhouse-cli/runfile"
+	"github.com/nwylynko/clubhouse-cli/session"
+	"github.com/nwylynko/clubhouse-cli/trust"
 	"github.com/spf13/cobra"
 )
 
@@ -266,7 +266,7 @@ func standUpOnBox(ctx context.Context, cmd *cobra.Command, plan firstrun.Plan, o
 	}
 	// Fixed, not asked (plan 29 §7): the harness login stays on this laptop, so
 	// the box serves and supervises but runs no on-box conductor. Install/dev
-	// are deliberately absent — the box reads .slopball/run.json once the setup
+	// are deliberately absent — the box reads .club/run.json once the setup
 	// role commits it. Takeover is required because the laptop Claims first
 	// (plan 44 ticket 05); the box becomes host at generation 2.
 	opt.ServeOnly, opt.Takeover = true, true
@@ -308,11 +308,11 @@ func standUpOnBox(ctx context.Context, cmd *cobra.Command, plan firstrun.Plan, o
 		}
 		fmt.Fprintf(out, "box provisioned on %s (container %s)\n\n", b.Target, b.Container)
 		// What the box published is the session's own address, and with the session
-		// network on (the default) that is `slop://<pin>/git/canonical.git` — a name
+		// network on (the default) that is `club://<pin>/git/canonical.git` — a name
 		// for a session ROLE, not a URL git can dial. Dialable is the one place that
 		// knows the difference, and every local git tool below has to go through it:
 		// this branch used to hand the raw address to `git clone --mirror` and die
-		// with `remote helper 'slop' aborted session` the moment the box came up.
+		// with `remote helper 'club' aborted session` the moment the box came up.
 		//
 		// Resolved once, so the forwarder outlives every caller below rather than
 		// being rebuilt per caller. The line printed for humans keeps the published
@@ -337,7 +337,7 @@ func standUpOnBox(ctx context.Context, cmd *cobra.Command, plan firstrun.Plan, o
 			fmt.Fprintf(out, "seeded canonical from %s\n", seedDir)
 		}
 
-		fmt.Fprintf(out, "session live. share with your team:\n\n    slopball join %s\n\n", pin)
+		fmt.Fprintf(out, "session live. share with your team:\n\n    club join %s\n\n", pin)
 		fmt.Fprintf(out, "git:     %s\ncontrol: %s\n\n", b.GitURL, client.Base)
 
 		// This laptop is a member like any other — plan 30's premise is that the
@@ -393,7 +393,7 @@ func standUpOnBox(ctx context.Context, cmd *cobra.Command, plan firstrun.Plan, o
 }
 
 // joinSelf registers this laptop as an ordinary client of the session it just
-// created, named from $USER exactly as `slopball join` names it. Calling it
+// created, named from $USER exactly as `club join` names it. Calling it
 // "host" would name a machine that hosts nothing — the confusion plan 16 spent a
 // whole plan killing.
 func joinSelf(ctx context.Context, cmd *cobra.Command, pin string, out io.Writer) (*joindaemon.Joined, error) {
@@ -421,7 +421,7 @@ func clientName() string {
 }
 
 // electSelf elects this machine as the session's harness runner, the same act
-// `slopball elect` performs — shared so the wizard cannot drift from it.
+// `club elect` performs — shared so the wizard cannot drift from it.
 func electSelf(cmd *cobra.Command, pin string, plan firstrun.Plan) error {
 	p := session.ForPin(pin)
 	name := os.Getenv("USER")
@@ -544,7 +544,7 @@ func provisionSessionBox(ctx context.Context, cmd *cobra.Command, client *contro
 			return nil, err
 		}
 		// BYO facts land in the SAME record a managed box ends up in, so the
-		// monitor, the console and slopdebug learn one shape.
+		// monitor, the console and clubdebug learn one shape.
 		_ = client.PutBox(ctx, pin, controlplane.BoxFacts{
 			Target: b.Target, Container: b.Container, Image: b.Image, Version: Version,
 		})

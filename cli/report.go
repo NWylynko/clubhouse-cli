@@ -16,13 +16,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/session"
-	"github.com/nwylynko/slopball-cli/telemetry"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/session"
+	"github.com/nwylynko/clubhouse-cli/telemetry"
 )
 
-// `slopball report` is retroactive opt-in for ONE session (plan 46 ticket 15).
+// `club report` is retroactive opt-in for ONE session (plan 46 ticket 15).
 //
 // A human whose session just broke runs one command, everything about that
 // session is uploaded, and they get back an id to quote. It is human-run, one
@@ -59,7 +59,7 @@ type reportSection struct {
 func runReport(cmd *cobra.Command, _ []string) error {
 	pin := resolvePin(cmd)
 	if pin == "" {
-		return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set SLOPBALL_PIN")
+		return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set CLUB_PIN")
 	}
 	ctx := cmd.Context()
 	if ctx == nil {
@@ -70,7 +70,7 @@ func runReport(cmd *cobra.Command, _ []string) error {
 
 	id, secret := session.ReadMembership(pin)
 	if id == "" || secret == "" {
-		return fmt.Errorf("this machine is not a member of %s, so it cannot report on it — run `slopball report` on a machine that joined the session", pin)
+		return fmt.Errorf("this machine is not a member of %s, so it cannot report on it — run `club report` on a machine that joined the session", pin)
 	}
 
 	// The exchange: the member Bearer this machine holds becomes a fresh
@@ -89,7 +89,7 @@ func runReport(cmd *cobra.Command, _ []string) error {
 			strings.Contains(err.Error(), "unauthorized") {
 			return fmt.Errorf("session %s is gone from the control plane, or this machine's membership of it is — "+
 				"either way nothing can mint or verify a ticket for it any more, so there is nowhere to send a report. "+
-				"Expired sessions take their members with them, so `slopball report` has to be run while the session is "+
+				"Expired sessions take their members with them, so `club report` has to be run while the session is "+
 				"still live (about 3 hours)", pin)
 		}
 		return fmt.Errorf("exchange this machine's membership for a telemetry ticket: %w", err)
@@ -161,12 +161,12 @@ func newReportID() string {
 	return "rp_" + hex.EncodeToString(b[:])
 }
 
-// gatherReport collects what slopdebug already gathers — control-plane state,
+// gatherReport collects what clubdebug already gathers — control-plane state,
 // leases, convergence, the /logs dev-server buffer, the box container log,
 // canonical branch topology — plus this machine's own log tail.
 //
 // It runs from INSIDE the session, which is what lets it read sources
-// slopdebug cannot: a `slop://` logs endpoint names a session role and only a
+// clubdebug cannot: a `club://` logs endpoint names a session role and only a
 // process holding the session key can dial it.
 func gatherReport(ctx context.Context, client *controlplane.Client,
 	pin string, sess controlplane.Session, logLines int) []reportSection {

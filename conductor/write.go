@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	sbGit "github.com/nwylynko/slopball-cli/git"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
 )
 
 func writeFileOS(root, rel, body string) error {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 // AdvertiseEnv is what the CONTROL PLANE is told, so it can tell everyone else
@@ -17,7 +17,7 @@ import (
 // Distinct from URLEnv, which is where a SERVICE posts its own envelopes. On
 // the compose bridge those differ — a container name versus a public hostname
 // — and one name serving both would be wrong for one of them.
-const AdvertiseEnv = "SLOPBALL_TELEMETRY_ADVERTISE"
+const AdvertiseEnv = "CLUB_TELEMETRY_ADVERTISE"
 
 var (
 	ingestWarnMu   sync.Mutex

@@ -2,7 +2,7 @@ package controlplane
 
 import (
 	"context"
-	"github.com/nwylynko/slopball-cli/telemetry"
+	"github.com/nwylynko/clubhouse-cli/telemetry"
 	"sync"
 )
 
@@ -63,7 +63,7 @@ func (c *Client) UnregisterOutbox(pin string) {
 }
 
 // OutboxFor returns this process's member cycle for pin, or nil when it has
-// none. Nil means "this process holds no membership" — `slopball conductor`
+// none. Nil means "this process holds no membership" — `club conductor`
 // run standalone — not "the cycle is broken", so a nil result publishes
 // directly rather than dropping the write.
 func (c *Client) OutboxFor(pin string) *Outbox {

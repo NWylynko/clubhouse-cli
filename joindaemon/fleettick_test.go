@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/conductor"
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/conductor"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 // ⚠️ This is the one test that lives in the PUBLIC module, and it is here

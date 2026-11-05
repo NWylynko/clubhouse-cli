@@ -29,7 +29,7 @@ type Client struct {
 	Bin   string // resolved binary path or name
 
 	// Dir is the working directory for Complete turns. Empty inherits the
-	// slopball process's cwd, which is almost never what a caller wants: a
+	// club process's cwd, which is almost never what a caller wants: a
 	// conductor started from ~/dev pointed the merger's harness at ~/dev, and a
 	// CLI that gates on workspace trust then blocked on a directory unrelated to
 	// the session. Callers should set this to the session work tree.
@@ -98,7 +98,7 @@ type Availability struct {
 	Present bool
 }
 
-// All is every harness slopball knows how to drive, in the order the first-run
+// All is every harness club knows how to drive, in the order the first-run
 // wizard offers them.
 var All = []Name{Claude, Codex, Cursor}
 
@@ -273,7 +273,7 @@ func (c *Client) Agent(ctx context.Context, dir, prompt string, out io.Writer) e
 
 // agentArgs builds the write-capable, non-interactive argv per CLI. These flags
 // differ per harness and move between releases — the opt-in real-CLI test
-// (SLOPBALL_REAL_HARNESS=1) is what keeps them honest.
+// (CLUB_REAL_HARNESS=1) is what keeps them honest.
 func (c *Client) agentArgs(prompt string) ([]string, error) {
 	var args []string
 	switch c.Name {

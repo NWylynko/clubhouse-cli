@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Download the pinned static git distribution into git/bundled/ so
-# //go:embed can bake it into the slopball binary. Pin + checksums live here —
+# //go:embed can bake it into the club binary. Pin + checksums live here —
 # bump Version in git/version.go in lockstep.
 set -euo pipefail
 

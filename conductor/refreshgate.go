@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
 )
 
 // RefreshGate decides when a conductor's *network* fetch should run (plan 43

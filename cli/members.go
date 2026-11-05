@@ -6,7 +6,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
 	"github.com/spf13/cobra"
 )
 
@@ -41,7 +41,7 @@ func newMembersCmd() *cobra.Command {
 func runMembersList(cmd *cobra.Command, _ []string) error {
 	pin := resolvePin(cmd)
 	if pin == "" {
-		return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set SLOPBALL_PIN")
+		return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set CLUB_PIN")
 	}
 	ctx := context.Background()
 	client := controlClient(cmd)
@@ -64,7 +64,7 @@ func runMembersList(cmd *cobra.Command, _ []string) error {
 	}
 	_ = w.Flush()
 	if len(pending) > 0 {
-		fmt.Fprintf(out, "\n%d join request(s) waiting — `slopball members accept <id>` or `decline <id>`\n", len(pending))
+		fmt.Fprintf(out, "\n%d join request(s) waiting — `club members accept <id>` or `decline <id>`\n", len(pending))
 	}
 	return nil
 }
@@ -80,7 +80,7 @@ func runMembersDecline(cmd *cobra.Command, args []string) error {
 func decideMember(cmd *cobra.Command, id, decision string) error {
 	pin := resolvePin(cmd)
 	if pin == "" {
-		return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set SLOPBALL_PIN")
+		return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set CLUB_PIN")
 	}
 	m, err := controlClient(cmd).DecideMember(context.Background(), pin, id, decision)
 	if err != nil {

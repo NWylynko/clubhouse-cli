@@ -11,14 +11,14 @@ import (
 	"sync"
 )
 
-// Scheme is how a session address is written down. `slop://<pin>/<service>/<path>`
+// Scheme is how a session address is written down. `club://<pin>/<service>/<path>`
 // says *which session service* to reach and says nothing about which machine is
 // holding it — which is the whole point: the git lease can move to another
 // member mid-session and every published URL stays correct.
 //
 // It is also what the control plane stores as the git endpoint, so the endpoint
 // record stops being an IP:port that was true when it was written.
-const Scheme = "slop"
+const Scheme = "club"
 
 // FormatURL builds a session address. path is the trailing resource, e.g.
 // "canonical.git" for the session git server.
@@ -112,9 +112,9 @@ func LocalURL(ctx context.Context, raw, relay string, key Key, direct func(servi
 
 // localDomain is a name a human can read, on a domain that costs nothing:
 // *.localhost is reserved by RFC 6761 and resolves to loopback with no DNS
-// lookup, no /etc/hosts line and no root. A bare `slopball` host would need a
+// lookup, no /etc/hosts line and no root. A bare `club` host would need a
 // sudo'd hosts entry — the single-binary-no-root promise traded for one dot.
-const localDomain = "slopball.localhost"
+const localDomain = "club.localhost"
 
 // DevLocalHost is the hostname a member opens the session's dev server on.
 // Per-PIN so two concurrent sessions stay distinct.

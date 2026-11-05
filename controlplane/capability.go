@@ -1,6 +1,6 @@
 package controlplane
 
-import "github.com/nwylynko/slopball-cli/detect"
+import "github.com/nwylynko/clubhouse-cli/detect"
 
 // CapFromProfile flattens a detect.Profile into the ranking subset published on members.
 func CapFromProfile(p detect.Profile) *MemberCapability {

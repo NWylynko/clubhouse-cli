@@ -17,7 +17,7 @@ import (
 // (the monorepo holds them); the only production caller is the embedded
 // bundled-git archive.
 func ExtractArchive(archive []byte, dest string) error {
-	marker := filepath.Join(dest, ".slopball-git-ok")
+	marker := filepath.Join(dest, ".clubhouse-git-ok")
 	if _, err := os.Stat(marker); err == nil {
 		return nil
 	}

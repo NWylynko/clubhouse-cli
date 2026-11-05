@@ -14,10 +14,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/clientaddr"
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/relayticket"
-	"github.com/nwylynko/slopball-cli/telemetry"
+	"github.com/nwylynko/clubhouse-cli/clientaddr"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/relayticket"
+	"github.com/nwylynko/clubhouse-cli/telemetry"
 )
 
 // The relay speaks one line of ASCII and then gets out of the way. Three verbs,
@@ -32,7 +32,7 @@ import (
 // It is deliberately ignorant of session keys. A rogue that registers a service
 // it has no key for can deny service, but it cannot read or forge traffic — the
 // handshake at each end sees to that. Keeping the relay out of the credential
-// business is what lets slopball run one for many sessions.
+// business is what lets club run one for many sessions.
 //
 // That ignorance is load-bearing and easy to erode. Validating a key would mean
 // asking the control plane, and then a control-plane outage would break every
@@ -46,7 +46,7 @@ import (
 // protocol without going through this package's holder (internal/relaylive
 // does, to keep a splice genuinely idle). A second copy of the literal is how
 // two implementations drift.
-const Proto = "slopball-relay/1"
+const Proto = "clubhouse-relay/1"
 
 const relayProto = Proto
 
@@ -147,14 +147,14 @@ type Relay struct {
 	// that would exceed it is closed rather than slowing every peer.
 	SpliceBytesPerSec int
 
-	// ProxyHops is how many reverse-proxy hops sit in front (SLOPBALL_PROXY_HOPS /
+	// ProxyHops is how many reverse-proxy hops sit in front (CLUB_PROXY_HOPS /
 	// ADR 0005). Resolved at the WebSocket upgrade and carried on the connection
 	// so sourceOf is not the TCP peer of the proxy.
 	ProxyHops int
 
 	// TicketPublic, when set, requires an Ed25519 relay ticket on register and
 	// connect (ticket 17). The relay holds ONLY this public key — nothing that
-	// could mint. Production sets it via $SLOPBALL_RELAY_TICKET_PUBLIC; nil is
+	// could mint. Production sets it via $CLUB_RELAY_TICKET_PUBLIC; nil is
 	// refused by Start unless AllowUnauthenticated says a keyless relay is
 	// meant (unit tests, the emulator).
 	TicketPublic ed25519.PublicKey

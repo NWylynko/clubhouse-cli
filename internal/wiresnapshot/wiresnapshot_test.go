@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nwylynko/slopball-cli/internal/wirechanges"
-	"github.com/nwylynko/slopball-cli/internal/wiresnapshot"
+	"github.com/nwylynko/clubhouse-cli/internal/wirechanges"
+	"github.com/nwylynko/clubhouse-cli/internal/wiresnapshot"
 )
 
 const repoRoot = "../.."
@@ -40,7 +40,7 @@ func driftInstructions() string {
 		"THE WIRE SURFACE MOVED AND NOTHING CLASSIFIES THE CHANGE.",
 		"",
 		"Above is what " + wiresnapshot.SnapshotPath + " says (-) against what this tree says (+).",
-		"Those shapes are what an already-installed slopball on somebody else's laptop can see:",
+		"Those shapes are what an already-installed club on somebody else's laptop can see:",
 		"the control-plane HTTP types and vocabulary, the session-network framing, the telemetry",
 		"envelope, and the relay ticket. Do all three of these, in this order:",
 		"",
@@ -69,7 +69,7 @@ func driftInstructions() string {
 		"   " + wirechanges.FloorConstantRef + ".",
 		"   That constant is the DEPLOYED control plane's property, so it moves there, and the",
 		"   guard that pairs it against your floor runs there too — when that repo bumps its",
-		"   `require github.com/nwylynko/slopball-cli` pin onto the release this entry ships in.",
+		"   `require github.com/nwylynko/clubhouse-cli` pin onto the release this entry ships in.",
 		"   So a breaking entry here is not deployable on its own, and that is the point: the",
 		"   floor is what turns a garbled decode on somebody's laptop into a clear refusal.",
 		"",
@@ -100,10 +100,10 @@ func TestTheWireScanActuallyFindsEveryWireThisModuleOwns(t *testing.T) {
 		{"the control-plane session document", "type Session struct"},
 		{"the member row every cycle upserts", "type Member struct"},
 		{"the one uplink per member cycle", "type MemberSync struct"},
-		{"the member-id header", `const MemberHeader = "X-Slopball-Member"`},
+		{"the member-id header", `const MemberHeader = "X-Club-Member"`},
 		{"the session-network record ceiling", "const maxRecord = 16 * 1024"},
-		{"the handshake's domain separator", `const handshakeInfo = "slopball-sessionnet-v1"`},
-		{"the relay subprotocol", `const Proto = "slopball-relay/1"`},
+		{"the handshake's domain separator", `const handshakeInfo = "clubhouse-sessionnet-v1"`},
+		{"the relay subprotocol", `const Proto = "clubhouse-relay/1"`},
 		{"the record layer's length prefix", "hdr [2]byte"},
 		{"the telemetry envelope", "type Envelope struct"},
 		{"the relay ticket claims", "type Claims struct"},

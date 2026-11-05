@@ -1,6 +1,6 @@
 # `.wire-changes/` — the pending wire-change ledger
 
-Every change to a shape somebody else's **already-installed** slopball can see
+Every change to a shape somebody else's **already-installed** Clubhouse can see
 gets one file in this folder, classified in one sentence written from *that
 client's* point of view.
 
@@ -84,7 +84,7 @@ old client is `ClientVersionFloor`, a constant in the **private services repo**
 (`internal/controlplane/service/floor.go`). It is the deployed control plane's
 own property — never config, never a row, and never this module's — so it moves
 there, and the guard that pairs it against these floors runs there too, when
-that repo bumps its `require github.com/nwylynko/slopball-cli` pin onto the
+that repo bumps its `require github.com/nwylynko/clubhouse-cli` pin onto the
 release your entry ships in. Two consequences worth knowing before you file one:
 
 - a `breaking` entry here is **not deployable on its own**. It is tagged, then
@@ -124,7 +124,7 @@ laptops upgrade *into*.
 
 **Then wait.** Laptops upgrade at their own pace (`install.sh`, then rejoin).
 Nothing forces them, and nothing should: an enforced drain window is layer-4
-machinery slopball deliberately has not built.
+machinery Clubhouse deliberately has not built.
 
 **Release 2 — CONTRACT.** Drop acceptance of the old shape — deleting the shim
 *is* this step. The entry is `class: breaking` and carries

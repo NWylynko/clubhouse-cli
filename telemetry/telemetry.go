@@ -30,10 +30,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
-// MaxBodyBytes is the capture cap. Nothing slopball legitimately handles is
+// MaxBodyBytes is the capture cap. Nothing club legitimately handles is
 // near it (the session document is single-digit KB), so full fidelity stays
 // true in practice — and the cap is what stops a hostile POST being a memory
 // attack recorded in your own database.
@@ -427,19 +427,19 @@ func (e *Emitter) fail(batch []Envelope, why string) {
 
 // KeyHeader carries the shared service key. Clients authenticate with an
 // Ed25519 ticket instead; that lands with the ingest itself.
-const KeyHeader = "X-Slopball-Telemetry-Key"
+const KeyHeader = "X-Club-Telemetry-Key"
 
 // KeyEnv names the shared service key. It lives HERE, in the emitter package,
 // rather than in the telemetry service: the relay reads it too, and the relay
 // image deliberately links neither pgx nor a store — importing the service
 // package for one constant would put a postgres driver in it.
-const KeyEnv = "SLOPBALL_TELEMETRY_KEY"
+const KeyEnv = "CLUB_TELEMETRY_KEY"
 
 // URLEnv names where a service posts its own envelopes. Deliberately distinct
 // from what CLIENTS are told: on the compose bridge a service posts to
-// `http://slopball-telemetry:7779/v1/telemetry` while a laptop needs the public
+// `http://clubhouse-telemetry:7779/v1/telemetry` while a laptop needs the public
 // hostname, and one name serving both would be wrong for one of them.
-const URLEnv = "SLOPBALL_TELEMETRY_URL"
+const URLEnv = "CLUB_TELEMETRY_URL"
 
 // RequireURL is the boot refusal for a service with nowhere to post.
 // Configurable implies required: "unset means do not record" is the soft
@@ -447,7 +447,7 @@ const URLEnv = "SLOPBALL_TELEMETRY_URL"
 // this whole plan exists to remove.
 func RequireURL(url string) error {
 	if strings.TrimSpace(url) == "" {
-		return errors.New(URLEnv + " is unset — set it to this deployment's telemetry ingest (compose uses http://slopball-telemetry:7779" + IngestPath + ")")
+		return errors.New(URLEnv + " is unset — set it to this deployment's telemetry ingest (compose uses http://clubhouse-telemetry:7779" + IngestPath + ")")
 	}
 	return nil
 }
@@ -470,7 +470,7 @@ const TicketService = "telemetry"
 // trust it.
 func RequireKey(key string) error {
 	if strings.TrimSpace(key) == "" {
-		return errors.New(KeyEnv + " is unset — set it in .env to the shared telemetry ingest key (any long random string; the same value on the control plane, the relay and slopball-telemetry)")
+		return errors.New(KeyEnv + " is unset — set it in .env to the shared telemetry ingest key (any long random string; the same value on the control plane, the relay and clubhouse-telemetry)")
 	}
 	return nil
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +39,7 @@ func newAccessCmd() *cobra.Command {
 func runAccessShow(cmd *cobra.Command, _ []string) error {
 	pin := resolvePin(cmd)
 	if pin == "" {
-		return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set SLOPBALL_PIN")
+		return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set CLUB_PIN")
 	}
 	sess, err := controlClient(cmd).Session(context.Background(), pin)
 	if err != nil {
@@ -56,7 +56,7 @@ func runAccessShow(cmd *cobra.Command, _ []string) error {
 func runAccessSet(cmd *cobra.Command, access string) error {
 	pin := resolvePin(cmd)
 	if pin == "" {
-		return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set SLOPBALL_PIN")
+		return fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set CLUB_PIN")
 	}
 	if err := controlClient(cmd).SetAccess(context.Background(), pin, access); err != nil {
 		return err

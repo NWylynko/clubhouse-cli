@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/gitserver"
-	"github.com/nwylynko/slopball-cli/logx"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/gitserver"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 // Layout under a session's canonical/ directory.
@@ -48,9 +48,9 @@ type Host struct {
 
 // SeedReadme is the only file a freshly created canonical carries. Exported
 // because "is there a project on main yet?" is the question the setup role
-// (plan 28) asks to pick scaffold vs adapt mode, and slopball's own seed must
+// (plan 28) asks to pick scaffold vs adapt mode, and club's own seed must
 // not read as somebody's repo.
-func SeedReadme(pin string) string { return "# slopball session " + pin + "\n" }
+func SeedReadme(pin string) string { return "# club session " + pin + "\n" }
 
 // Create initializes a new canonical artifact under root. seed may be empty
 // (blank project), a path to an existing directory to import, or ignored for now.
@@ -137,7 +137,7 @@ func Open(root, pin string) (*Host, error) {
 // elector's laptop under its harness login.
 //
 // remoteURL wins on EVERY open, not only on the clone. It is nearly always a
-// loopback forwarder onto `slop://<pin>/git/canonical.git` — an address that
+// loopback forwarder onto `club://<pin>/git/canonical.git` — an address that
 // belongs to the calling process, not to the session — so a replica that keeps
 // the origin it was cloned with is fetching from a port that died with the
 // previous join daemon. That is session 2lmymb (2026-08-17): a laptop rejoined,
@@ -296,8 +296,8 @@ func (h *Host) MergeBase(ctx context.Context, branch string) (string, error) {
 // SyncWorkToMain fast-forwards the demo work tree to bare's main after a merge
 // advances it. The reset is unconditional: canonical/work is the machine-owned
 // demo mirror ("tracks main, do not edit"), never an edit surface — humans and
-// agents edit in the session's work/ tree and reach main through `slopball
-// sync`. Local modifications here are slopball's own churn, above all the
+// agents edit in the session's work/ tree and reach main through `club
+// sync`. Local modifications here are club's own churn, above all the
 // lockfile its dependency install rewrites in this very tree, and they lose to
 // main by design.
 //

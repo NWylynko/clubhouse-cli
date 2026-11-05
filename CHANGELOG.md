@@ -20,6 +20,12 @@ that broke you is the version to upgrade to.
 
 Releases before this file existed are in `git tag` only.
 
+## v1.4.0
+
+### Breaking — an already-installed client stops working
+
+- floor v1.4.0 — An old client is refused: the binary is `club`, its home is `~/.club`, every env var is `CLUB_*`, every header is `X-Club-*`, session addresses are `club://`, and the deployment lives at `*.clubhouse.sh` — so a `slopball` binary has nothing here it can talk to; reinstall from clubhouse.sh.
+
 ## v1.1.0
 
 ### Additive — an already-installed client is unaffected
@@ -38,4 +44,4 @@ Releases before this file existed are in `git tag` only.
 
 ### Additive — an already-installed client is unaffected
 
-- An old client keeps working: the member documents it decodes now carry a `version` field it ignores, and the control plane records a blank version for it because it sends no `X-Slopball-Version` header.
+- An old client keeps working: the member documents it decodes now carry a `version` field it ignores, and the control plane records a blank version for it because it sends no `X-Club-Version` header.

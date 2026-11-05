@@ -1,4 +1,4 @@
-// Package joindaemon is the long-running `slopball join` side: resolve PIN via
+// Package joindaemon is the long-running `club join` side: resolve PIN via
 // the control plane, clone canonical, keep a background-fresh main mirror
 // (plans/11 + 24).
 package joindaemon
@@ -14,21 +14,21 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/admission"
-	"github.com/nwylynko/slopball-cli/canonical"
-	"github.com/nwylynko/slopball-cli/conductor"
-	"github.com/nwylynko/slopball-cli/contracts"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/detect"
-	"github.com/nwylynko/slopball-cli/devserver"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/harness"
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/netbind"
-	"github.com/nwylynko/slopball-cli/placement"
-	"github.com/nwylynko/slopball-cli/runtime"
-	"github.com/nwylynko/slopball-cli/session"
-	"github.com/nwylynko/slopball-cli/syncengine"
+	"github.com/nwylynko/clubhouse-cli/admission"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	"github.com/nwylynko/clubhouse-cli/conductor"
+	"github.com/nwylynko/clubhouse-cli/contracts"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/detect"
+	"github.com/nwylynko/clubhouse-cli/devserver"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/harness"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/netbind"
+	"github.com/nwylynko/clubhouse-cli/placement"
+	"github.com/nwylynko/clubhouse-cli/runtime"
+	"github.com/nwylynko/clubhouse-cli/session"
+	"github.com/nwylynko/clubhouse-cli/syncengine"
 )
 
 // Options for joining a session.
@@ -38,7 +38,7 @@ type Options struct {
 	Control *controlplane.Client
 
 	// ConductsHere says this process already conducts the session in the
-	// foreground — the `slopball dev` wizard, which scaffolds and then runs its
+	// foreground — the `club dev` wizard, which scaffolds and then runs its
 	// own fleet. The daemon then adopts the conductor lease instead of racing
 	// for it, so the session still has exactly one conductor and this process
 	// does not stand a second fleet up beside its own.
@@ -161,7 +161,7 @@ func Join(ctx context.Context, opt Options) (*Joined, error) {
 	log := logx.New("join")
 	// Claim the session directory before the control plane is even dialled.
 	// resolveJoinSession is several round trips on a cold network, and a person
-	// who has just typed `slopball join` is entitled to type `slopball claude`
+	// who has just typed `club join` is entitled to type `club claude`
 	// straight after it — so the claim has to precede the slow part, not follow
 	// it. Everything from here to Ready is covered.
 	//
@@ -196,20 +196,20 @@ func Join(ctx context.Context, opt Options) (*Joined, error) {
 	}
 	log.Infof("control plane ok — %s resolved: git=%s generation=%d host=%s", opt.PIN, gitURL, sess.Generation, orUnknown(sess.HostMachine))
 	// Everything below hands this URL to git, so it has to be a URL git can
-	// dial. On the session network the endpoint is `slop://<pin>/git/…`, which
+	// dial. On the session network the endpoint is `club://<pin>/git/…`, which
 	// names the session ROLE — correct to publish, meaningless to `git clone`.
 	// Dialable is the one place that knows the difference (it stands the
 	// loopback forwarder up); skipping it is how join died with "remote helper
-	// 'slop' aborted session" while every published address looked right.
+	// 'club' aborted session" while every published address looked right.
 	dialable, err := client.Dialable(ctx, sess, gitURL)
 	if err != nil {
 		return nil, fmt.Errorf("reach %s for session %s: %w", gitURL, opt.PIN, err)
 	}
 	gitURL = dialable
-	// On the PUBLISHED endpoint, never the dialable one. A `slop://` endpoint
+	// On the PUBLISHED endpoint, never the dialable one. A `club://` endpoint
 	// always resolves to a loopback forwarder here — that is what Dialable is
 	// for — so reading the resolved address made this fire on every session-
-	// network join, one line after logging the correct slop:// URL, telling the
+	// network join, one line after logging the correct club:// URL, telling the
 	// reader to restart a host that was configured properly.
 	if hint := unreachableHint(published, client.Base); hint != "" {
 		log.Warnf("%s", hint)
@@ -261,7 +261,7 @@ func Join(ctx context.Context, opt Options) (*Joined, error) {
 	// The work tree, the contracts and the metadata are all on disk, so this is
 	// the instant it becomes openable — ahead of JoinMember, the held stream
 	// and the loops below, none of which a person sitting in the folder is
-	// waiting for. Every `slopball open`/`claude` blocked on this session wakes
+	// waiting for. Every `club open`/`claude` blocked on this session wakes
 	// here.
 	if err := standup.Ready(meta); err != nil {
 		log.Warnf("could not mark %s ready: %v", opt.PIN, err)
@@ -464,7 +464,7 @@ func (j *Joined) mirrorLoop() {
 			cancel()
 			if main != "" && main != lastMain {
 				if lastMain != "" {
-					j.log.Infof("mirror: main advanced to %s (run `slopball sync` to integrate)", shortSHA(main))
+					j.log.Infof("mirror: main advanced to %s (run `club sync` to integrate)", shortSHA(main))
 				} else {
 					j.log.Debugf("mirror: main at %s", shortSHA(main))
 				}
@@ -551,11 +551,11 @@ func (j *Joined) ensureDevForwarder(ctx context.Context) {
 	j.mu.Lock()
 	j.devURL = url
 	j.mu.Unlock()
-	// Published so `slopball site` can report THIS forwarder. A separate CLI
+	// Published so `club site` can report THIS forwarder. A separate CLI
 	// process resolving the endpoint itself would find this port taken, retry
 	// to the next derived one, and print a URL that closes when it exits.
 	if err := session.PublishDevURL(j.Session.PIN, url); err != nil {
-		j.log.Warnf("could not publish the dev URL for `slopball site`: %v", err)
+		j.log.Warnf("could not publish the dev URL for `club site`: %v", err)
 	}
 	j.log.Infof("dev server: %s", url)
 }
@@ -572,7 +572,7 @@ func unreachableHint(gitURL, controlBase string) string {
 
 // diagnose annotates a clone failure, and reads the PUBLISHED endpoint for the
 // same reason unreachableHint does: on the session network the URL git was given
-// is slopball's own forwarder, and "the host published loopback" would be a
+// is club's own forwarder, and "the host published loopback" would be a
 // confident wrong answer. A refused connection to a published loopback
 // endpoint is ambiguous from here — either the host is on this machine and its
 // process is gone, or (the reported bug) the host is on another machine and
@@ -602,7 +602,7 @@ func resolveJoinSession(ctx context.Context, client *controlplane.Client, pin, n
 		sess, err := client.Session(ctx, pin)
 		if err != nil {
 			// One sentence, unwrapped. Wrapping it would tell somebody whose
-			// slopball is simply old to go and check a PIN and a URL that are
+			// club is simply old to go and check a PIN and a URL that are
 			// both fine (plan 48).
 			if errors.Is(err, controlplane.ErrUpgradeRequired) {
 				return controlplane.Session{}, "", controlplane.ErrUpgradeRequired
@@ -714,7 +714,7 @@ func alreadyJoinedHere(pin string, paths session.Paths) (bool, error) {
 		return true, nil
 	case !work && !mirror:
 		if entries, err := os.ReadDir(paths.Work); err == nil && len(entries) > 0 {
-			return false, fmt.Errorf("%s already exists and is not a slopball work tree — move it aside, then join again", paths.Work)
+			return false, fmt.Errorf("%s already exists and is not a club work tree — move it aside, then join again", paths.Work)
 		}
 		return false, nil
 	default:
@@ -759,8 +759,8 @@ func noDaemonRunningHere(pin string) error {
 	if !ok || m.PID == os.Getpid() {
 		return nil
 	}
-	return fmt.Errorf("a slopball daemon is already running here for %s (pid %d, started %s) — "+
-		"use `slopball open %s` for a shell in the work tree, or stop that process first",
+	return fmt.Errorf("a club daemon is already running here for %s (pid %d, started %s) — "+
+		"use `club open %s` for a shell in the work tree, or stop that process first",
 		pin, m.PID, m.StartedAt.Local().Format("15:04:05"), pin)
 }
 

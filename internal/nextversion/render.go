@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/nwylynko/slopball-cli/internal/wirechanges"
+	"github.com/nwylynko/clubhouse-cli/internal/wirechanges"
 )
 
 // RenderNextVersion writes the page Nick reads at tag time.
@@ -18,7 +18,7 @@ import (
 func RenderNextVersion(w io.Writer, rel Release) error {
 	p := func(format string, a ...any) { fmt.Fprintf(w, format+"\n", a...) }
 
-	p("# slopball — next version")
+	p("# club — next version")
 	p("")
 	p("DERIVED by `make next-version` from .wire-changes/ and the last tag. Nothing")
 	p("here ran: this tool never tags and never pushes, the same way")

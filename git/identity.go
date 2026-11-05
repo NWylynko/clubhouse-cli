@@ -21,13 +21,13 @@ type Identity struct {
 // is the honest shape for an address nobody holds. Any caller with a real
 // identity (SessionIdentity) overrides this — see Env, where the caller's
 // values are appended last and therefore win.
-var HermeticIdentity = Identity{Name: "slopball", Email: "slopball@slopball.invalid"}
+var HermeticIdentity = Identity{Name: "club", Email: "club@club.invalid"}
 
-// SessionIdentity builds alice@slop-<pin>.local style identity.
+// SessionIdentity builds alice@club-<pin>.local style identity.
 func SessionIdentity(name, pin string) Identity {
 	return Identity{
 		Name:  name,
-		Email: fmt.Sprintf("%s@slop-%s.local", name, pin),
+		Email: fmt.Sprintf("%s@club-%s.local", name, pin),
 	}
 }
 

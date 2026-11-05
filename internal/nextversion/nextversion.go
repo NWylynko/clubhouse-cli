@@ -35,8 +35,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/internal/wirechanges"
+	"github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/internal/wirechanges"
 )
 
 // ChangelogPath is where consumed sentences land, relative to the repo root.

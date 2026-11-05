@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-// Package git is the *only* way the rest of slopball touches git. Every call
+// Package git is the *only* way the rest of club touches git. Every call
 // goes through a hermetic wrapper around a pinned bundled binary — never the
 // machine's system git — so identical merges produce identical results on every
 // machine (plans/01, MASTERPLAN §9.1).
@@ -24,13 +24,13 @@ var (
 // Prefix returns the extracted git distribution root (contains cmd/, bin/,
 // libexec/, share/).
 func Prefix() (string, error) {
-	home := os.Getenv("SLOPBALL_HOME")
+	home := os.Getenv("CLUB_HOME")
 	if home == "" {
 		h, err := os.UserHomeDir()
 		if err != nil {
 			return "", err
 		}
-		home = filepath.Join(h, ".slopball")
+		home = filepath.Join(h, ".club")
 	}
 	return filepath.Join(home, "git", Version+"-"+runtime.GOOS+"-"+runtime.GOARCH), nil
 }
@@ -38,7 +38,7 @@ func Prefix() (string, error) {
 // Bin returns the absolute path to the bundled git launcher (cmd/git). Extracts
 // the embedded archive into Prefix() on first use.
 //
-// The resolution is memoized per-prefix, not globally: SLOPBALL_HOME does not
+// The resolution is memoized per-prefix, not globally: CLUB_HOME does not
 // move mid-process in production (so this is one resolve, as before), but in
 // tests it moves constantly, and a globally-memoized answer meant a later test
 // got a path inside an earlier test's already-deleted TempDir.
@@ -113,7 +113,7 @@ var warnOnce sync.Once
 // for clients on platforms without a bundled asset.
 func warnSystemGitOnce(path string) {
 	warnOnce.Do(func() {
-		fmt.Fprintf(os.Stderr, "slopball: no bundled git for %s/%s — using system git at %s (fine for a client; the host still uses bundled git)\n",
+		fmt.Fprintf(os.Stderr, "club: no bundled git for %s/%s — using system git at %s (fine for a client; the host still uses bundled git)\n",
 			runtime.GOOS, runtime.GOARCH, path)
 	})
 }

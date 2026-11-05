@@ -1,4 +1,4 @@
-// Command slopball is the single static binary that hosts and joins slopball
+// Command club is the single static binary that hosts and joins club
 // sessions. It is deliberately thin — all behavior lives in internal packages,
 // organized by feature vertical.
 package main
@@ -6,7 +6,7 @@ package main
 import (
 	"os"
 
-	"github.com/nwylynko/slopball-cli/cli"
+	"github.com/nwylynko/clubhouse-cli/cli"
 )
 
 func main() {

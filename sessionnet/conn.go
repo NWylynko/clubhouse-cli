@@ -20,11 +20,11 @@ import (
 // key mixed in as the pre-shared secret. Two properties are wanted and both
 // come from that one construction — the relay in the middle learns nothing
 // (X25519), and a peer without the session key cannot complete it (PSK). It is
-// deliberately not a full Noise implementation: slopball has exactly one
+// deliberately not a full Noise implementation: club has exactly one
 // pattern, and a hand-rolled protocol nobody can read is worse than a small one
 // that says what it is.
 const (
-	handshakeInfo   = "slopball-sessionnet-v1"
+	handshakeInfo   = "clubhouse-sessionnet-v1"
 	maxRecord       = 16 * 1024
 	handshakeWindow = 20 * time.Second
 )

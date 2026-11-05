@@ -70,7 +70,7 @@ func (s *SSHRunner) PutMode(ctx context.Context, data []byte, remotePath string,
 	return nil
 }
 
-// LocalRunner executes on the machine slopball is running on — for provisioning a
+// LocalRunner executes on the machine club is running on — for provisioning a
 // box you are already logged into, and for tests. No SSH involved.
 type LocalRunner struct{}
 

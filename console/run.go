@@ -8,9 +8,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/devserver"
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/devserver"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 // Feed is where the console's live data comes from. Everything here is a poll
@@ -27,7 +27,7 @@ type Feed struct {
 	// LogsURL is resolved per tick rather than captured, because the dev
 	// service can move to another member mid-session (plan 30). It returns the
 	// resolution failure rather than "" so the dev tab can say why it is empty
-	// — a placeholder that never changes is how a `slop://` URL nobody could
+	// — a placeholder that never changes is how a `club://` URL nobody could
 	// dial went unnoticed for a whole session (plan 40).
 	LogsURL func(context.Context) (string, error)
 	// DevURL is the dev endpoint resolved into something this machine can open,
@@ -69,7 +69,7 @@ func isCharDevice(f *os.File) bool {
 // thing holding the session open.
 //
 // While it runs, logx is diverted into the console's own buffers. Any stray
-// write to stdout corrupts an alt-screen render, and slopball's loops narrate
+// write to stdout corrupts an alt-screen render, and club's loops narrate
 // constantly — this is the piece that is easy to miss and guaranteed to be
 // visible.
 // work is the session itself — the scaffold, the fleet loop, the mirror
@@ -88,7 +88,7 @@ func Run(ctx context.Context, opt Options, feed Feed, work func(ctx context.Cont
 	failed := make(chan error, 1)
 	if work != nil {
 		go func() {
-			if err := work(ctx, &sendWriter{send: p.Send, component: "slopball"}); err != nil {
+			if err := work(ctx, &sendWriter{send: p.Send, component: "club"}); err != nil {
 				// The standup runs behind this screen now, so its failures arrive
 				// here rather than before the console existed. A session that never
 				// came up has nothing to look at: take the screen down and let the
@@ -201,7 +201,7 @@ func (l *logSink) Write(b []byte) (int, error) {
 func (l *logSink) line(text string) {
 	fields := strings.Fields(text)
 	if len(fields) < 4 {
-		l.emit("slopball", text)
+		l.emit("club", text)
 		return
 	}
 	_, rest, _ := strings.Cut(strings.TrimSpace(text), fields[2])

@@ -1,4 +1,4 @@
-// Package update is the client half of slopball's own distribution: asking the
+// Package update is the client half of club's own distribution: asking the
 // site what the latest version is, saying so once a session is over, and
 // replacing this binary when the user asks for it.
 //
@@ -28,26 +28,26 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 var log = logx.New("update")
 
-// SiteURL is where slopball asks about itself: the version API and the two
+// SiteURL is where club asks about itself: the version API and the two
 // shell scripts that install and update it.
 //
 // A var, not a const, for exactly one reason — the tests that drive this
 // package live in another module and stand up a real HTTP server in place of
 // the site (plan 49). There is deliberately no flag and no environment
-// variable: this address is the same on every machine slopball runs on, which
+// variable: this address is the same on every machine club runs on, which
 // makes it a constant rather than deployment config (ADR 0006 question 1), and
 // a second door onto it would be one more way for a client to be pointed at a
 // version number nobody controls.
-var SiteURL = "https://slopball.wylynko.dev"
+var SiteURL = "https://clubhouse.sh"
 
 // versionAnswer is the /version body. One field, because every extra field is
-// something every slopball ever installed has to keep parsing.
+// something every club ever installed has to keep parsing.
 type versionAnswer struct {
 	Latest string `json:"latest"`
 }
@@ -111,14 +111,14 @@ func Check(ctx context.Context, current string) string {
 	if err != nil {
 		// Silent to the user, not to a debug run: "why did it never tell me to
 		// update" is a real question, and the answer is usually a network this
-		// trace names. `SLOPBALL_LOG=debug` is where it shows up.
+		// trace names. `CLUB_LOG=debug` is where it shows up.
 		log.Debugf("version check: %v", err)
 		return ""
 	}
 	if !Behind(current, latest) {
 		return ""
 	}
-	return fmt.Sprintf("a newer slopball is out: %s (you are on %s) — run `slopball update` when you are done", latest, current)
+	return fmt.Sprintf("a newer club is out: %s (you are on %s) — run `club update` when you are done", latest, current)
 }
 
 // StartCheck runs Check behind whatever the caller is doing and hands back a
@@ -143,16 +143,16 @@ func StartCheck(ctx context.Context, current string) func() string {
 	}
 }
 
-// BinaryDir is the directory holding the running slopball — where an update has
+// BinaryDir is the directory holding the running club — where an update has
 // to land.
 //
 // Symlinks are resolved because installing over a symlink replaces the link and
-// leaves the real binary behind: `slopball --version` would then report the new
+// leaves the real binary behind: `club --version` would then report the new
 // version while every other path to the same install still runs the old one.
 func BinaryDir() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("find the running slopball: %w", err)
+		return "", fmt.Errorf("find the running club: %w", err)
 	}
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
@@ -160,7 +160,7 @@ func BinaryDir() (string, error) {
 	return filepath.Dir(exe), nil
 }
 
-// Apply replaces the slopball in `dir` with the latest release, by fetching the
+// Apply replaces the club in `dir` with the latest release, by fetching the
 // site's update.sh and piping it into sh.
 //
 // Fetching the script rather than reimplementing it is the whole design: the
@@ -179,14 +179,14 @@ func Apply(ctx context.Context, out io.Writer, dir string) error {
 	cmd := exec.CommandContext(ctx, "sh", "-s")
 	cmd.Stdin = script
 	cmd.Stdout, cmd.Stderr = out, out
-	// SLOPBALL_INSTALL_DIR aims the script at THIS binary — a slopball invoked
+	// CLUB_INSTALL_DIR aims the script at THIS binary — a club invoked
 	// by an absolute path is not on PATH, so the script's own fallback would
-	// replace some other slopball or refuse. SLOPBALL_SITE keeps the second hop
+	// replace some other club or refuse. CLUB_SITE keeps the second hop
 	// (update.sh fetching install.sh) on the site this one came from, so an
 	// update is one place's answer rather than two.
 	cmd.Env = append(os.Environ(),
-		"SLOPBALL_INSTALL_DIR="+dir,
-		"SLOPBALL_SITE="+SiteURL,
+		"CLUB_INSTALL_DIR="+dir,
+		"CLUB_SITE="+SiteURL,
 	)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("run the updater from %s: %w", SiteURL, err)

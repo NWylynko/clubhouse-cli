@@ -81,7 +81,7 @@ func (c *Client) HandoverLease(ctx context.Context, pin string, req LeaseRequest
 }
 
 // ReleaseLease gives a service up immediately — the "I am leaving" path.
-// The actor is the Bearer (X-Slopball-Member); there is no memberId query
+// The actor is the Bearer (X-Club-Member); there is no memberId query
 // parameter (abuse-surface ticket 19 / #22).
 func (c *Client) ReleaseLease(ctx context.Context, pin, service string) error {
 	_, err := c.leaseCall(ctx, http.MethodDelete,

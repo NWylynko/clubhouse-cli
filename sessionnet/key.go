@@ -4,19 +4,19 @@
 //
 // Two facts shape everything here:
 //
-//   - **Nothing in slopball is peer-to-peer.** Every client resolves one git
+//   - **Nothing in club is peer-to-peer.** Every client resolves one git
 //     endpoint and points a single `origin` at it, so traffic is hub-and-spoke.
 //     The member holding a service's lease opens an *outbound* connection to a
 //     relay and clients are spliced onto it. That escapes symmetric NAT and
 //     client-isolated wifi, which is exactly where hole punching fails — so
 //     there is no NAT traversal here, deliberately.
 //   - **The relay carries ciphertext only.** Client and lease holder run a
-//     PSK-authenticated X25519 handshake through the splice, so slopball can
+//     PSK-authenticated X25519 handshake through the splice, so club can
 //     operate relays without being able to read anyone's source — and holding
 //     the session key, not reaching a port, is what authorizes a push. That
 //     retires `reachability = authorization` (MASTERPLAN §16 #7).
 //
-// The client side needs no TUN device and no root: slopball owns git's `origin`
+// The client side needs no TUN device and no root: club owns git's `origin`
 // URL, so a loopback Forwarder is a complete substitute for an IP-level VPN.
 package sessionnet
 

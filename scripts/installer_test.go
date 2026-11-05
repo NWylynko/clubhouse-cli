@@ -11,7 +11,7 @@ import (
 // The GitHub Release is the only distribution channel there is (plan 47 step
 // 10; homebrew was dropped, not deferred), so these tests own the contract
 // between three files that must agree on one string: `make release` writes
-// `dist/slopball-<os>-<arch>`, the workflow uploads exactly those files, and
+// `dist/club-<os>-<arch>`, the workflow uploads exactly those files, and
 // `scripts/install.sh` derives the same name from `uname`. A rename in any one
 // of them breaks installing for everybody, and nothing else would notice.
 //
@@ -48,10 +48,10 @@ func TestInstallShFetchesTheAssetForThisPlatform(t *testing.T) {
 	for _, tc := range []struct {
 		unameS, unameM, want string
 	}{
-		{"Darwin", "arm64", "slopball-darwin-arm64"},
-		{"Darwin", "x86_64", "slopball-darwin-amd64"},
-		{"Linux", "aarch64", "slopball-linux-arm64"},
-		{"Linux", "x86_64", "slopball-linux-amd64"},
+		{"Darwin", "arm64", "club-darwin-arm64"},
+		{"Darwin", "x86_64", "club-darwin-amd64"},
+		{"Linux", "aarch64", "club-linux-arm64"},
+		{"Linux", "x86_64", "club-linux-amd64"},
 	} {
 		t.Run(tc.want, func(t *testing.T) {
 			env := newInstallEnv(t, tc.unameS, tc.unameM)
@@ -64,7 +64,7 @@ func TestInstallShFetchesTheAssetForThisPlatform(t *testing.T) {
 			}
 			// Installed under the plain name, executable, and actually the bytes
 			// that were downloaded rather than a placeholder.
-			bin := filepath.Join(env.dir, "bin", "slopball")
+			bin := filepath.Join(env.dir, "bin", "club")
 			info, err := os.Stat(bin)
 			if err != nil {
 				t.Fatalf("nothing was installed: %v\n%s", err, out)
@@ -110,7 +110,7 @@ func TestTheInstallerNamesTheFilesMakeReleaseWrites(t *testing.T) {
 		_, rhs, _ := strings.Cut(line, ":=")
 		for _, p := range strings.Fields(rhs) {
 			os, arch, _ := strings.Cut(p, "/")
-			built["slopball-"+os+"-"+arch] = true
+			built["club-"+os+"-"+arch] = true
 		}
 	}
 	if len(built) != 4 {
@@ -147,7 +147,7 @@ func TestTheReleaseWorkflowPublishesTheMatrixOnATag(t *testing.T) {
 		"fetch-depth: 0",              // …and the tag is the version, which needs history
 		"contents: write",             // the release is created by this workflow
 		"CONTROL_URL=",                // the documented CI stamping path, beating any .env
-		"dist/slopball-*",             // the assets are the files make release wrote
+		"dist/club-*",                 // the assets are the files make release wrote
 		"softprops/action-gh-release", // the release itself
 	} {
 		if !strings.Contains(wf, want) {
@@ -163,7 +163,7 @@ func TestTheReleaseWorkflowPublishesTheMatrixOnATag(t *testing.T) {
 
 // TestPublishingWaitsForAHuman (plan 49): the build is fix-forward, the publish
 // is not. A GitHub Release is what install.sh resolves and what
-// slopball.wylynko.dev/version reports to every installed client, and the box
+// clubhouse.sh/version reports to every installed client, and the box
 // image is what a BYO user docker-pulls onto their own machine — once strangers
 // have them, they are out.
 //
@@ -246,7 +246,7 @@ func (e *installEnv) run() (string, error) {
 	cmd := exec.Command("sh", filepath.Join(root, "scripts", "install.sh"))
 	env := []string{
 		"PATH=" + filepath.Join(e.dir, "stub") + string(os.PathListSeparator) + os.Getenv("PATH"),
-		"SLOPBALL_INSTALL_DIR=" + filepath.Join(e.dir, "bin"),
+		"CLUB_INSTALL_DIR=" + filepath.Join(e.dir, "bin"),
 		"HOME=" + e.dir,
 	}
 	// No credential reaches the script: a token in the developer's shell must not
@@ -326,11 +326,11 @@ func requireSh(t *testing.T) {
 	}
 }
 
-// TestTheBoxImageStampsTheVersionItPutsOnTheWire: the box runs a slopball
+// TestTheBoxImageStampsTheVersionItPutsOnTheWire: the box runs a club
 // binary that knocks at the control plane like any laptop, so it needs the same
 // stamp — and it did not have it.
 //
-// box/Dockerfile.ci compiles cmd/slopball from source and carried only
+// box/Dockerfile.ci compiles cmd/club from source and carried only
 // `-X cli.Version`, so every published ghcr image presented
 // controlplane.ClientVersion's package default, `0.0.0-dev`, on every request.
 // ClientMeetsFloor ranks that below every floor, fail-closed: the day a real
@@ -345,7 +345,7 @@ func requireSh(t *testing.T) {
 // the box's own link flags are written.
 func TestTheBoxImageStampsTheVersionItPutsOnTheWire(t *testing.T) {
 	df := readRepoFile(t, "box/Dockerfile.ci")
-	const stamp = "-X github.com/nwylynko/slopball-cli/controlplane.ClientVersion=${VERSION}"
+	const stamp = "-X github.com/nwylynko/clubhouse-cli/controlplane.ClientVersion=${VERSION}"
 	if !strings.Contains(df, stamp) {
 		t.Fatalf("box/Dockerfile.ci never stamps ClientVersion, so every published box image presents "+
 			"0.0.0-dev on the wire — below every floor, and invisible until a floor exists.\n"+

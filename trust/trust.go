@@ -31,7 +31,7 @@ const (
 
 // RunnerFile is the only conductor-related file written onto a remote box.
 // It names who runs the harness — never API keys or subscription tokens.
-const RunnerFile = ".slopball/conductor-runner.json"
+const RunnerFile = ".club/conductor-runner.json"
 
 // Broker owns election state for harness-CLI conductor placement.
 type Broker struct {
@@ -81,7 +81,7 @@ func WarningForElect(elector, harnessName string) string {
 	return fmt.Sprintf(
 		"WARNING: electing %s's %s harness as the conductor runner for a host someone else owns.\n"+
 			"AI roles will run on THIS laptop (where the harness is logged in); login never lands on the box.\n"+
-			"Revoke anytime with `slopball elect --revoke`.",
+			"Revoke anytime with `club elect --revoke`.",
 		elector, harnessName,
 	)
 }
@@ -346,7 +346,7 @@ func looksLikeSecret(s string) bool {
 // PersistFile is session-local elect state on the electing laptop (not the box).
 const PersistFile = "trust-elect.json"
 
-// PersistState is what the electing laptop keeps so `slopball elect --revoke`
+// PersistState is what the electing laptop keeps so `club elect --revoke`
 // can clear the election. Never contains API keys or harness login material.
 type PersistState struct {
 	PIN      string `json:"pin"`

@@ -25,10 +25,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/devserver"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/netbind"
-	"github.com/nwylynko/slopball-cli/sessionnet"
+	"github.com/nwylynko/clubhouse-cli/devserver"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/netbind"
+	"github.com/nwylynko/clubhouse-cli/sessionnet"
 )
 
 // Server is a session git HTTP endpoint backed by one bare repo.
@@ -50,14 +50,14 @@ type Server struct {
 	Logs func() string
 
 	// LogsSelect, when set, serves a filtered view at /logs?stream=&phase=.
-	// The off-box error-watcher asks for dev-phase stderr; a human (slopdebug,
+	// The off-box error-watcher asks for dev-phase stderr; a human (clubdebug,
 	// curl) passes no query and keeps getting everything, in order.
 	LogsSelect func(stream, phase string) string
 
 	// LogsSince, when set, serves a followable view at /logs?since=<cursor>:
 	// JSON lines plus the next cursor, so the console's dev tab streams instead
 	// of re-reading a snapshot (plan 36 §2). Without `since` the response is
-	// byte-for-byte the plain text it has always been — slopdebug, curl and the
+	// byte-for-byte the plain text it has always been — clubdebug, curl and the
 	// error-watcher all depend on that.
 	LogsSince func(cursor int64, stream devserver.Stream, phase devserver.Phase) ([]devserver.Line, int64)
 

@@ -1,14 +1,14 @@
 #!/usr/bin/env sh
-# slopball installer — the one install path there is.
+# club installer — the one install path there is.
 #
 # A GitHub Release is the whole distribution channel (plan 47 step 10; homebrew
 # was dropped, decided not deferred). This fetches the asset for THIS machine's
 # platform from the latest release and puts it on PATH:
 #
-#     curl -fsSL https://slopball.wylynko.dev/install.sh | sh          # install
-#     curl -fsSL https://slopball.wylynko.dev/install.sh | sh -s abc123 # install, then tell you to join
+#     curl -fsSL https://clubhouse.sh/install.sh | sh          # install
+#     curl -fsSL https://clubhouse.sh/install.sh | sh -s abc123 # install, then tell you to join
 #
-# The asset name is contractual — `make release` writes dist/slopball-<os>-<arch>
+# The asset name is contractual — `make release` writes dist/club-<os>-<arch>
 # and the release workflow uploads those files under exactly those names, so the
 # `uname` mapping below is one third of a three-way agreement (the other two are
 # the Makefile's PLATFORMS and .github/workflows/release-cli.yml, both now in
@@ -27,11 +27,11 @@
 # Guarded by scripts/installer_test.go, which runs it with no gh and no token.
 set -eu
 
-BIN="slopball"
-REPO="${SLOPBALL_REPO:-nwylynko/slopball-cli}"
+BIN="club"
+REPO="${CLUB_REPO:-nwylynko/clubhouse-cli}"
 # Which release to install. Empty means the latest one.
-TAG="${SLOPBALL_VERSION:-}"
-DEST="${SLOPBALL_INSTALL_DIR:-$HOME/.local/bin}"
+TAG="${CLUB_VERSION:-}"
+DEST="${CLUB_INSTALL_DIR:-$HOME/.local/bin}"
 PIN="${1:-}"
 
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -39,11 +39,11 @@ arch="$(uname -m)"
 case "$arch" in
 	x86_64 | amd64) arch="amd64" ;;
 	arm64 | aarch64) arch="arm64" ;;
-	*) echo "slopball: no release is built for this architecture: $arch (released: amd64, arm64)" >&2; exit 1 ;;
+	*) echo "club: no release is built for this architecture: $arch (released: amd64, arm64)" >&2; exit 1 ;;
 esac
 case "$os" in
 	darwin | linux) ;;
-	*) echo "slopball: no release is built for this OS: $os (released: darwin, linux)" >&2; exit 1 ;;
+	*) echo "club: no release is built for this OS: $os (released: darwin, linux)" >&2; exit 1 ;;
 esac
 
 ASSET="$BIN-$os-$arch"
@@ -51,7 +51,7 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 if ! command -v curl >/dev/null 2>&1; then
-	echo "slopball: curl is needed to download the release" >&2
+	echo "club: curl is needed to download the release" >&2
 	exit 1
 fi
 # `releases/latest/download/<asset>` resolves the newest release server-side;
@@ -62,15 +62,15 @@ if [ -n "$TAG" ]; then
 else
 	url="https://github.com/$REPO/releases/latest/download/$ASSET"
 fi
-echo "slopball: fetching $ASSET from $REPO ${TAG:+$TAG }release"
+echo "club: fetching $ASSET from $REPO ${TAG:+$TAG }release"
 if ! curl -fsSL -o "$tmp/$ASSET" "$url"; then
-	echo "slopball: download failed: $url" >&2
-	echo "slopball: is the release published, and does it carry $ASSET? https://github.com/$REPO/releases" >&2
+	echo "club: download failed: $url" >&2
+	echo "club: is the release published, and does it carry $ASSET? https://github.com/$REPO/releases" >&2
 	exit 1
 fi
 
 if [ ! -f "$tmp/$ASSET" ]; then
-	echo "slopball: the release had no asset named $ASSET." >&2
+	echo "club: the release had no asset named $ASSET." >&2
 	exit 1
 fi
 
@@ -82,11 +82,11 @@ chmod +x "$tmp/$ASSET"
 mv "$tmp/$ASSET" "$DEST/$BIN.tmp.$$"
 mv "$DEST/$BIN.tmp.$$" "$DEST/$BIN"
 
-echo "slopball: installed $DEST/$BIN ($("$DEST/$BIN" --version 2>/dev/null || echo 'not runnable on this machine'))"
+echo "club: installed $DEST/$BIN ($("$DEST/$BIN" --version 2>/dev/null || echo 'not runnable on this machine'))"
 case ":$PATH:" in
 	*":$DEST:"*) ;;
-	*) echo "slopball: $DEST is not on your PATH — add it: export PATH=\"$DEST:\$PATH\"" ;;
+	*) echo "club: $DEST is not on your PATH — add it: export PATH=\"$DEST:\$PATH\"" ;;
 esac
 if [ -n "$PIN" ]; then
-	echo "slopball: join the session with: $BIN join $PIN"
+	echo "club: join the session with: $BIN join $PIN"
 fi

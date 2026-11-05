@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 // LogEvents writes join-request arrivals and decisions to the admission
@@ -25,7 +25,7 @@ func LogEvents(events []controlplane.Event) {
 			if m := payload(e, "machine"); m != "" {
 				who += "@" + m
 			}
-			log.Infof("join request from %s — `slopball members accept %s`", who, payload(e, "id"))
+			log.Infof("join request from %s — `club members accept %s`", who, payload(e, "id"))
 		case "member.declined":
 			log.Infof("join request from %s declined", payload(e, "name"))
 		case "member.joined":

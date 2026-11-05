@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nwylynko/slopball-cli/telemetry"
+	"github.com/nwylynko/clubhouse-cli/telemetry"
 )
 
 // EventKind is what a decoded agent-stream event is.
@@ -26,7 +26,7 @@ const (
 // It exists because `--output-format text` delivers *nothing* until the process
 // exits: a scaffold that runs for two minutes showed one line and then a frozen
 // screen, which is indistinguishable from a hang. Every CLI has a streaming
-// format; this is the one shape slopball reads them all into.
+// format; this is the one shape club reads them all into.
 type Event struct {
 	Kind EventKind
 	// Tool is the verb for EventTool ("shell", "edit", "read", …), blank otherwise.
@@ -354,7 +354,7 @@ func (d *streamDecoder) detail(args map[string]json.RawMessage) string {
 			if key == "command" || key == "cmd" {
 				// The work tree is a temp path the reader did not choose and
 				// cannot act on, and it appears several times in one command —
-				// `cd /tmp/slopball-setup-3108460813 && npm install` spends half
+				// `cd /tmp/clubhouse-setup-3108460813 && npm install` spends half
 				// the visible line saying where, and gets truncated before what.
 				return d.shorten(v)
 			}

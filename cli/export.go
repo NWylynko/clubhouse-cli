@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/session"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/session"
 	"github.com/spf13/cobra"
 )
 
-// newExportCmd builds `slopball export <path>` — the way work leaves a session
+// newExportCmd builds `club export <path>` — the way work leaves a session
 // without a GitHub account.
 //
 // It exists because the wizard asks about the GitHub snapshot during first run,
@@ -46,13 +46,13 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	src := workDir(p)
 	if _, err := os.Stat(filepath.Join(src, ".git")); err != nil {
-		return fmt.Errorf("no work tree to export at %s — join the session first with `slopball join %s`", src, s.PIN)
+		return fmt.Errorf("no work tree to export at %s — join the session first with `club join %s`", src, s.PIN)
 	}
 	dest, err := filepath.Abs(args[0])
 	if err != nil {
 		return err
 	}
-	// `slopball export ./out` from inside the work tree is easy to type and bad
+	// `club export ./out` from inside the work tree is easy to type and bad
 	// to do: it drops a second repository into the tree the merger is working
 	// in, which the next sync then publishes to everybody.
 	if dirInside(resolvePath(src), resolvePath(dest)) {
@@ -218,7 +218,7 @@ func exportDirtyState(ctx context.Context, src, dest string) error {
 // exportUntracked copies the files git can see but does not track. It asks git
 // rather than walking the tree so .gitignore is honoured by the same engine
 // that honours it everywhere else — which is what keeps node_modules, the one
-// thing slopball never syncs, out of the export too.
+// thing club never syncs, out of the export too.
 func exportUntracked(ctx context.Context, src, dest string) error {
 	out, err := sbGit.Output(ctx, src, "ls-files", "--others", "--exclude-standard", "-z")
 	if err != nil {

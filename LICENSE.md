@@ -1,4 +1,4 @@
-Required Notice: Copyright Nick Wylynko (https://github.com/nwylynko/slopball-cli)
+Required Notice: Copyright Nick Wylynko (https://github.com/nwylynko/clubhouse-cli)
 
 # PolyForm Shield License 1.0.0
 

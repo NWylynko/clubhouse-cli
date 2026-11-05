@@ -14,7 +14,7 @@ import (
 // "that directory holds a usable work tree". It exists because those two facts
 // used to be reported by the same file at the same moment — the live marker,
 // written as the LAST act of Join/Start — so for the whole of a clone plus
-// every network round trip after it, `slopball open` (and cd, workspace,
+// every network round trip after it, `club open` (and cd, workspace,
 // claude, codex) told you the session did not exist while you were standing in
 // its folder.
 //
@@ -175,7 +175,7 @@ func WaitUntilReady(ctx context.Context, pin string) error {
 		return nil
 	}
 	return fmt.Errorf("session %s stopped standing up before its work tree was ready — "+
-		"check the terminal running `slopball join %s`", pin, pin)
+		"check the terminal running `club join %s`", pin, pin)
 }
 
 // StandingUp reports whether a live process holds pin but has not finished
@@ -192,7 +192,7 @@ func StandingUp(pin string) bool {
 // The fallback exists for VERSION SKEW, which is the one way this could have
 // shipped as a hang. A join daemon started by a build from before ReadyAt
 // existed keeps running across an upgrade, and its marker has no readyAt in it;
-// a new `slopball open` reading that marker would decide a perfectly healthy
+// a new `club open` reading that marker would decide a perfectly healthy
 // session was mid-standup and refuse it. The tree on disk is the older, truer
 // witness, so it settles the case.
 //

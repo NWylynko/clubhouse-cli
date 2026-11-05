@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// Trace, if set, is invoked after every git invocation. slopball wires it to
-// the debug logger (see internal/cli) so a SLOPBALL_LOG=debug run shows every git
+// Trace, if set, is invoked after every git invocation. club wires it to
+// the debug logger (see internal/cli) so a CLUB_LOG=debug run shows every git
 // command the host/join loops fire, how long it took, and whether it failed —
 // the single most useful thing when a sync/merge misbehaves. Left nil in tests
 // and normal runs so there is zero overhead when tracing is off.
@@ -107,7 +107,7 @@ func Env(extra ...string) []string {
 }
 
 // Cmd is a hermetic git invocation rooted at Dir (optional). All git traffic
-// in slopball must go through Cmd — never exec.Command("git", …).
+// in club must go through Cmd — never exec.Command("git", …).
 type Cmd struct {
 	Dir    string   // working tree / repo; passed as the process cwd
 	Env    []string // additional env (e.g. GIT_AUTHOR_NAME); merged onto hermetic base

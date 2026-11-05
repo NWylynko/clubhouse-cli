@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// The per-session client log is what `slopball report` sends when something
+// The per-session client log is what `club report` sends when something
 // broke (plan 46 ticket 15).
 //
 // It is written for EVERYBODY, opted in or not, because it never leaves the

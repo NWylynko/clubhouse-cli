@@ -12,7 +12,7 @@ name: pr
 # it from silence.
 #
 # ⚠️ NO CREDENTIALS, DELIBERATELY. This job takes no repository variable and no
-# secret — not even SLOPBALL_DEFAULT_CONTROL, which release-cli.yml requires. The
+# secret — not even CLUB_DEFAULT_CONTROL, which release-cli.yml requires. The
 # property under test is plan 49's first acceptance line: the public repo builds
 # the full release matrix from a clean checkout with no access to anything
 # private. A build that quietly needed a variable would pass here and fail for
@@ -60,7 +60,7 @@ jobs:
         run: |
           set -eu
           for p in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
-            test -s "dist/slopball-$p" || { echo "missing dist/slopball-$p" >&2; exit 1; }
+            test -s "dist/club-$p" || { echo "missing dist/club-$p" >&2; exit 1; }
           done
-          ./dist/slopball-linux-amd64 --version
-          ./dist/slopball-linux-amd64 --help >/dev/null
+          ./dist/club-linux-amd64 --version
+          ./dist/club-linux-amd64 --help >/dev/null

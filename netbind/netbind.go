@@ -28,7 +28,7 @@ import (
 	"strings"
 )
 
-// AdvertiseNone is what a provisioner sets SLOPBALL_ADVERTISE to when this
+// AdvertiseNone is what a provisioner sets CLUB_ADVERTISE to when this
 // machine has NO address a peer could dial — not a loopback one, none at all.
 //
 // It exists for a Cloudflare Container, which is reachable only outbound through
@@ -42,10 +42,10 @@ const AdvertiseNone = "none"
 // DirectSuppressed reports that the provisioner said there is no dialable
 // address here, so no direct listener should be opened or published.
 func DirectSuppressed() bool {
-	return strings.EqualFold(strings.TrimSpace(os.Getenv("SLOPBALL_ADVERTISE")), AdvertiseNone)
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("CLUB_ADVERTISE")), AdvertiseNone)
 }
 
-// Advertise returns SLOPBALL_ADVERTISE: the address a listener should publish
+// Advertise returns CLUB_ADVERTISE: the address a listener should publish
 // regardless of what it binds. Set for a container in its own network
 // namespace, where the only address the process can see is a bridge IP that
 // resolves for nobody, and traffic arrives via docker's port forwarding.
@@ -53,7 +53,7 @@ func DirectSuppressed() bool {
 // AdvertiseNone is not an address, so it reads as absent here; the callers that
 // have to act on it ask DirectSuppressed.
 func Advertise() string {
-	adv := strings.TrimSpace(os.Getenv("SLOPBALL_ADVERTISE"))
+	adv := strings.TrimSpace(os.Getenv("CLUB_ADVERTISE"))
 	if strings.EqualFold(adv, AdvertiseNone) {
 		return ""
 	}
@@ -63,7 +63,7 @@ func Advertise() string {
 // ListenAdvertise is ListenMode with the bind address and the advertised
 // address allowed to differ, and with an optional fixed port.
 //
-// With SLOPBALL_ADVERTISE set it binds 0.0.0.0 — docker forwards to the
+// With CLUB_ADVERTISE set it binds 0.0.0.0 — docker forwards to the
 // wildcard, so anything narrower is unreachable — and advertises the address it
 // was handed. port pins the listener (needed when the box publishes it 1:1 and
 // the container has to bind the number it will advertise); 0 stays ephemeral.
@@ -87,7 +87,7 @@ func ListenAdvertise(mode string, port int) (net.Listener, string, error) {
 	}
 	ln, err := net.Listen("tcp", net.JoinHostPort("0.0.0.0", strconv.Itoa(port)))
 	if err != nil {
-		return nil, "", fmt.Errorf("SLOPBALL_ADVERTISE=%s: binding 0.0.0.0:%d: %w", adv, port, err)
+		return nil, "", fmt.Errorf("CLUB_ADVERTISE=%s: binding 0.0.0.0:%d: %w", adv, port, err)
 	}
 	return ln, adv, nil
 }

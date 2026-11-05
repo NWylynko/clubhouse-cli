@@ -14,14 +14,14 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/nwylynko/slopball-cli/clientaddr"
+	"github.com/nwylynko/clubhouse-cli/clientaddr"
 )
 
 // Everything on the session network is carried over WebSocket, and that is a
 // transport decision made for OUR ingress rather than anyone's egress.
 //
 // The relay has to be hosted somewhere both a holder and a client can reach.
-// The public front door slopball actually has is an outbound-only HTTP tunnel,
+// The public front door club actually has is an outbound-only HTTP tunnel,
 // which cannot carry raw TCP on a bespoke port — so a raw-TCP relay is code
 // that works and cannot be deployed. WebSocket makes the relay hostable behind
 // any HTTP ingress, which is the whole gap plan 38 closes. Surviving a network
@@ -342,7 +342,7 @@ type pinger interface {
 }
 
 // acceptRelayConn upgrades an inbound HTTP request into the same net.Conn every
-// other side of this package deals in. hops is SLOPBALL_PROXY_HOPS for the
+// other side of this package deals in. hops is CLUB_PROXY_HOPS for the
 // public relay; a holder's direct listener passes 0 (the peer is the client).
 func acceptRelayConn(w http.ResponseWriter, r *http.Request, hops int) (net.Conn, error) {
 	// Ticket 16 / #35: refuse a browser Origin, accept its absence. Our Go

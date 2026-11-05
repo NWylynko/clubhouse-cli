@@ -13,15 +13,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/session"
-	"github.com/nwylynko/slopball-cli/sessionnet"
-	"github.com/nwylynko/slopball-cli/telemetry"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/session"
+	"github.com/nwylynko/clubhouse-cli/sessionnet"
+	"github.com/nwylynko/clubhouse-cli/telemetry"
 )
 
 // controlClientLog is the client half's logger. It exists for exactly one line
 // today — the full text of a version refusal, which the caller deliberately
-// never prints — so `SLOPBALL_LOG=debug` can still answer "refused for being
+// never prints — so `CLUB_LOG=debug` can still answer "refused for being
 // how old?" without the CLI turning one sentence into a paragraph.
 var controlClientLog = logx.New("control-client")
 
@@ -50,7 +50,7 @@ var ErrBadRequest = errors.New("bad request")
 // version floor (plan 48).
 //
 // Its message IS the sentence, and it is deliberately the whole error: every
-// surface that prints this — `slopball join`, the daemon's log, any verb that
+// surface that prints this — `club join`, the daemon's log, any verb that
 // touches the control plane — prints exactly one plain line a person can act on.
 // The server's 426 body says more (their version, the floor, the fix) and that
 // is for a log or a support paste; wrapping it in here would turn one sentence
@@ -61,7 +61,7 @@ var ErrBadRequest = errors.New("bad request")
 // the relay on cached endpoints until its last ticket expires (an hour), and its
 // member cycle keeps its normal cadence so a rollback that lowers the floor
 // self-heals without a restart. Never turn this into an exit path.
-var ErrUpgradeRequired = errors.New("slopball is too old for this control plane — re-run install.sh, then rejoin")
+var ErrUpgradeRequired = errors.New("club is too old for this control plane — re-run install.sh, then rejoin")
 
 // ErrRateLimited is a 429 — a shared-limiter subject refused the call.
 var ErrRateLimited = errors.New("rate limited")
@@ -87,7 +87,7 @@ type Client struct {
 	outboxes map[string]*Outbox
 	// secrets is pin → membership held in memory (overrides disk). Used by the
 	// control-plane provisioner: it mints the box member and must present it
-	// while waiting for the box to claim, with no SLOPBALL_HOME.
+	// while waiting for the box to claim, with no CLUB_HOME.
 	secrets map[string]membership
 	// tickets is pin → service → Ed25519 relay ticket (ticket 17). Filled from
 	// Claim / redeem / invite / MemberSync responses; Dialable and holders read
@@ -119,7 +119,7 @@ func NewClient(base string) *Client {
 // It is set at every mint (claim, redeem, invite) as well as by the managed-box
 // provisioner, which has no session home at all and would otherwise 401 on
 // every poll. Pinning matters beyond that: the disk copy is read per request,
-// so a second process sharing a SLOPBALL_HOME could otherwise swap this
+// so a second process sharing a CLUB_HOME could otherwise swap this
 // client's identity mid-flight and every call would start answering 403.
 func (c *Client) RememberMembership(pin, memberID, secret string) {
 	pin = strings.TrimSpace(pin)
@@ -702,7 +702,7 @@ func (c *Client) GitURL(ctx context.Context, pin string) (string, int, error) {
 }
 
 // Dialable turns whatever a session published into a URL local tools can use.
-// A `slop://` address (plan 09) is carried on the session network via a
+// A `club://` address (plan 09) is carried on the session network via a
 // loopback forwarder; anything else is already a machine address and is
 // returned unchanged.
 //
@@ -722,7 +722,7 @@ func (c *Client) Dialable(ctx context.Context, s Session, raw string) (string, e
 		return "", fmt.Errorf("session %s published %s but handed out no session key — nothing can authenticate to it", s.PIN, raw)
 	}
 	if s.RelayAddr == "" {
-		return "", fmt.Errorf("session %s is on the session network but its control plane names no relay (start one with `slopball relay`)", s.PIN)
+		return "", fmt.Errorf("session %s is on the session network but its control plane names no relay (start one with `club relay`)", s.PIN)
 	}
 	// Direct dial: a holder that published a machine address AND is actually
 	// reachable from here is dialed straight, and the relay becomes the

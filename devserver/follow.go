@@ -21,7 +21,7 @@ type FollowOptions struct {
 
 	// Stream and Phase are the server-side filter. Empty means everything —
 	// the merged human view a console shows. The error-watcher asks for
-	// stderr ∧ dev, which is what keeps slopball's own narration away from it.
+	// stderr ∧ dev, which is what keeps club's own narration away from it.
 	Stream Stream
 	Phase  Phase
 

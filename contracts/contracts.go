@@ -13,12 +13,12 @@ import (
 // BriefFile is where the session's one-line project brief lives on main. It is
 // committed rather than held in the control plane so it survives host migration
 // and box cutover, and so every joined agent can read it (plan 28 §2).
-const BriefFile = ".slopball/brief.md"
+const BriefFile = ".club/brief.md"
 
 // Files are the contracts Install writes, relative to the work tree root. They
 // live on main from the session's first commits (plan 31), which means a
 // scaffolding generator can collide with them — so the setup role needs to know
-// exactly which paths are slopball's to move aside and give back.
+// exactly which paths are club's to move aside and give back.
 //
 // AGENTS.md is the ONE source of truth and CLAUDE.md points at it. Three
 // separately-worded copies of one protocol is three things to keep in step, and
@@ -31,13 +31,13 @@ var Files = []string{"AGENTS.md", "CLAUDE.md"}
 // before the collapse has the .mdc committed on main with `alwaysApply: true`,
 // so every cursor agent in it keeps reading a stale copy of the protocol —
 // stopping writing it is not enough.
-var Legacy = []string{".cursor/rules/slopball.mdc"}
+var Legacy = []string{".cursor/rules/club.mdc"}
 
-// ProtocolMarker is the instruction that makes a slopball session work: without
+// ProtocolMarker is the instruction that makes a club session work: without
 // it an agent edits happily and never lands anything. It doubles as the
 // assertion that a contract survived being merged with one a scaffold wrote for
 // itself (plan 31).
-const ProtocolMarker = "slopball sync --intent"
+const ProtocolMarker = "club sync --intent"
 
 // pointerMarker is what makes CLAUDE.md worth having. Losing it is as bad as
 // losing the protocol itself: the file still looks like a contract and says
@@ -73,7 +73,7 @@ func readBrief(workDir string) string {
 }
 
 // isScaffolded reports whether main holds an actual project yet, as opposed to
-// slopball's own bookkeeping. Its answer only ever softens the contract's
+// club's own bookkeeping. Its answer only ever softens the contract's
 // wording, so a false negative costs a sentence, not correctness.
 func isScaffolded(workDir string) bool {
 	entries, err := os.ReadDir(workDir)
@@ -82,9 +82,9 @@ func isScaffolded(workDir string) bool {
 	}
 	for _, e := range entries {
 		switch e.Name() {
-		case ".git", ".slopball", ".cursor", ".gitignore",
+		case ".git", ".club", ".cursor", ".gitignore",
 			"AGENTS.md", "CLAUDE.md", "README.md":
-			continue // slopball's own artifacts, or the seed README
+			continue // club's own artifacts, or the seed README
 		}
 		return true
 	}
@@ -97,7 +97,7 @@ func briefSection(brief string, unscaffolded bool) string {
 	s := "\n## What we're building\n\n" + brief + "\n"
 	if unscaffolded {
 		s += "\nThe project has not been scaffolded yet — `main` holds no code. " +
-			"Building it is fair game: create it in your work tree and `slopball sync`, " +
+			"Building it is fair game: create it in your work tree and `club sync`, " +
 			"and everyone else picks it up.\n"
 	}
 	return s
@@ -111,7 +111,7 @@ func Install(workDir, pin string) error {
 	if brief := readBrief(workDir); brief != "" {
 		agents += briefSection(brief, !isScaffolded(workDir))
 	}
-	claude := fmt.Sprintf(`# slopball (Claude)
+	claude := fmt.Sprintf(`# club (Claude)
 
 Session PIN: %s
 
@@ -133,7 +133,7 @@ session. Read it before you touch anything.
 	return removeLegacy(workDir)
 }
 
-// removeLegacy deletes contracts an earlier slopball wrote, and the directories
+// removeLegacy deletes contracts an earlier club wrote, and the directories
 // that existed only to hold them — an emptied `.cursor/` is still an entry a
 // scaffolding generator counts when it refuses a non-empty directory. It stops
 // at any directory somebody else has a file in: `.cursor/rules/` is a shared
@@ -159,9 +159,9 @@ func removeLegacy(workDir string) error {
 // contractBody is the protocol every agent in the session follows. It is one
 // document because it is one protocol — see Files.
 func contractBody(pin string) string {
-	return fmt.Sprintf(`# slopball agent contract
+	return fmt.Sprintf(`# club agent contract
 
-You are building inside a slopball session (PIN %s), alongside other AI agents
+You are building inside a club session (PIN %s), alongside other AI agents
 working on the same project at the same time. This is a hackathon: hours, not
 weeks. This file is how you play with them, and it
 **overrides your usual engineering conventions** for this work tree — including
@@ -170,15 +170,15 @@ this file wins.
 
 ## The loop
 
-Run slopball commands from inside this work tree — the session is picked up from
-the folder, so you never pass --pin (set $SLOPBALL_PIN only if you run from elsewhere).
+Run club commands from inside this work tree — the session is picked up from
+the folder, so you never pass --pin (set $CLUB_PIN only if you run from elsewhere).
 
-1. **Before you start, run `+"`"+`slopball pull`+"`"+`.** Teammates have been landing changes
+1. **Before you start, run `+"`"+`club pull`+"`"+`.** Teammates have been landing changes
    since you last looked; this brings them into your branch. Without it you are
    building against a stale copy of the project.
 2. **Do the work.** Edit freely — you are on your own branch and nobody else is on it.
    No file locks and no ownership: two agents editing one file is expected and handled.
-3. **When it runs, `+"`"+`slopball sync --intent "<what you changed and why>"`+"`"+`.** That
+3. **When it runs, `+"`"+`club sync --intent "<what you changed and why>"`+"`"+`.** That
    publishes to the team and brings their work back down. Until you run it,
    nothing you did exists for anyone else.
 
@@ -228,7 +228,7 @@ test suite that would catch it.
 
 `+"`"+`pull`+"`"+` and `+"`"+`sync`+"`"+` both integrate the latest `+"`"+`main`+"`"+` into your branch before anything
 is published. If that leaves conflict markers, resolve them — you have context on
-your own change that nobody else does — and re-run the command. Slopball refuses
+your own change that nobody else does — and re-run the command. Clubhouse refuses
 to publish a tree with markers in it, so an unresolved conflict stops at your
 machine instead of reaching the team.
 
@@ -237,10 +237,10 @@ merger reads to resolve it well. Say what you changed and why.
 
 ## Seeing it run
 
-- **`+"`"+`slopball site`+"`"+`** prints the URL the session's site is on from this machine. It
+- **`+"`"+`club site`+"`"+`** prints the URL the session's site is on from this machine. It
   serves `+"`"+`main`+"`"+`: everyone's merged work, not yours. After a sync, this is where you
   check your change landed and still works alongside everyone else's.
-- **`+"`"+`slopball dev-setup`+"`"+`** prints how to install and run *this branch*. Nothing serves
+- **`+"`"+`club dev-setup`+"`"+`** prints how to install and run *this branch*. Nothing serves
   your branch until you do, so it is the only way to see unsynced work.
 
 Both are commands rather than URLs, because the answers differ per machine and
@@ -248,26 +248,26 @@ this file is shared by every agent in the session.
 
 ## Other commands
 
-- `+"`"+`slopball run -- <cmd>`+"`"+` — run a command on the host (where the dev server lives).
-- `+"`"+`slopball elect`+"`"+` — cloud-box sessions only, and only if asked: it makes this
+- `+"`"+`club run -- <cmd>`+"`"+` — run a command on the host (where the dev server lives).
+- `+"`"+`club elect`+"`"+` — cloud-box sessions only, and only if asked: it makes this
   machine the one that runs the session's conductor agent under your harness
   login. Nothing secret leaves this machine; `+"`"+`--revoke`+"`"+` undoes it.
 
-Never ask the human to run a git command, and never surface git to them. Slopball
+Never ask the human to run a git command, and never surface git to them. Clubhouse
 drives git for you; that is the whole point of it.
 
 ## Runtime coherence
 
 - The dev server binds port 3000. Full stop. Frameworks that honour `+"`"+`PORT`+"`"+` get it
-  from slopball; Vite and similar must set `+"`"+`server.port`+"`"+` (or the ecosystem
+  from club; Vite and similar must set `+"`"+`server.port`+"`"+` (or the ecosystem
   equivalent) to 3000. Do not move it — the session-network splice dials 3000.
-- Shared env goes in `+"`"+`.slopball/runtime.env`+"`"+` (tracked). The host materializes
+- Shared env goes in `+"`"+`.club/runtime.env`+"`"+` (tracked). The host materializes
   `+"`"+`.env`+"`"+` from it and restarts the dev server when it changes; everyone agrees via sync.
   A `+"`"+`PORT=`+"`"+` line there does not choose the splice target.
 - Migration files (`+"`"+`migrations/`+"`"+` and the like) are applied on the host automatically
   after a merge. Do not run them yourself.
 - A destructive database reset or reseed happens only when your intent note contains
-  `+"`"+`slopball:reseed`+"`"+` — never silently.
-- Everything else under `+"`"+`.slopball/`+"`"+` belongs to slopball. Do not edit it.
+  `+"`"+`club:reseed`+"`"+` — never silently.
+- Everything else under `+"`"+`.club/`+"`"+` belongs to club. Do not edit it.
 `, pin)
 }

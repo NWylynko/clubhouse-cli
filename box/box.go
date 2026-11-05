@@ -1,4 +1,4 @@
-// Package box provisions and drives a slopball cloud dev box: a Docker container
+// Package box provisions and drives a club cloud dev box: a Docker container
 // on a remote (or local) machine that hosts a session's canonical, runs the
 // conductor fleet, and serves the dev server. The originating machine — a
 // teammate's laptop that is already in the session — reaches the box over a
@@ -7,11 +7,11 @@
 //
 // Two provisioning lifecycles (plan 23):
 //   - Default / production: docker pull a CI-published, version-tagged image
-//     (ghcr.io/nwylynko/slopball-box:<cli-version>) and run it. No binary ship,
+//     (ghcr.io/nwylynko/clubhouse-box:<cli-version>) and run it. No binary ship,
 //     no on-box docker build.
 //   - --build-local (dev / air-gapped): ship the linux binary + Dockerfile, build
 //     the image on the box, then run — the plan-14 interim path, kept as an
-//     escape hatch so iterating on slopball itself needs no CI round-trip and a
+//     escape hatch so iterating on club itself needs no CI round-trip and a
 //     registry is never load-bearing for the mesh.
 //
 // This is the CLI making concrete what MASTERPLAN §9.2 calls pre-baking and §11
@@ -30,9 +30,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/telemetry"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/telemetry"
 )
 
 //go:embed Dockerfile
@@ -42,10 +42,10 @@ var log = logx.New("box")
 
 // buildDir is where the build context (Dockerfile + binary) is staged on the box
 // for the --build-local path.
-const buildDir = "/tmp/slopball-box"
+const buildDir = "/tmp/clubhouse-box"
 
 // DefaultRegistry is the GHCR repository that CI publishes multi-arch box images to.
-const DefaultRegistry = "ghcr.io/nwylynko/slopball-box"
+const DefaultRegistry = "ghcr.io/nwylynko/clubhouse-box"
 
 // defaultWaitTimeout bounds how long Provision waits for the booted container to
 // register itself as the session's host on the control plane.
@@ -77,21 +77,21 @@ type Runner interface {
 
 // Options configure a box provision.
 type Options struct {
-	// Image is the local docker tag used by --build-local (default "slopball-box").
+	// Image is the local docker tag used by --build-local (default "clubhouse-box").
 	Image string
 	// ImageRef is the fully-qualified image to pull+run on the default path
-	// (e.g. ghcr.io/nwylynko/slopball-box:1.2.3). Ignored when BuildLocal.
+	// (e.g. ghcr.io/nwylynko/clubhouse-box:1.2.3). Ignored when BuildLocal.
 	ImageRef string
 	// BuildLocal selects the ship-binary + docker build path. Requires Binary.
 	BuildLocal bool
 	// PullPolicy controls when the pull path fetches: PullAlways (default) or
 	// PullMissing (skip pull when `docker image inspect` succeeds).
 	PullPolicy string
-	// Binary is the slopball linux binary to ship; required when BuildLocal.
+	// Binary is the club linux binary to ship; required when BuildLocal.
 	Binary  []byte
 	PIN     string
 	SeedURL string // git URL to seed canonical from; "" = blank canonical
-	Network string // docker --network (default "slopball" — named bridge shared with local services)
+	Network string // docker --network (default "club" — named bridge shared with local services)
 	// Labels are extra docker --label pairs (harness Sweep / make test-clean).
 	Labels map[string]string
 	// AdvertiseIP is the box address containers publish into the control plane.
@@ -100,14 +100,14 @@ type Options struct {
 	// direct session-network address and DEMO endpoint, not a -p mapping.
 	AdvertiseIP string
 	ServeOnly   bool   // box serves canonical + tracks main, no on-box merger
-	Volume      string // host path mounted at $HOME/.slopball for persistence; "" = ephemeral
+	Volume      string // host path mounted at $HOME/.club for persistence; "" = ephemeral
 	Dev         string // dev-server command the box supervises (logs served at /logs); "" = none
 	// Install is the dependency-install command the box runs in canonical/work
 	// before starting Dev (plan 26). "" with Dev set falls through to DetectInstall
 	// inside the container.
 	Install string
 	// Brief is the one-line "what are we building?" answer (plan 28). It lands
-	// on the box's main as .slopball/brief.md, where the setup role scaffolds
+	// on the box's main as .club/brief.md, where the setup role scaffolds
 	// from it and every joined agent's contract quotes it.
 	Brief string
 	// MemberID / MemberSecret are the invited box member's identity (plan 44
@@ -131,13 +131,13 @@ type Options struct {
 	// control plane reads that as a returning host and demotes it to a client —
 	// so it never serves canonical and never starts Dev.
 	Takeover  bool
-	ExtraArgs []string // extra args appended to the slopball host command
-	Container string   // container name (default "slopball-<pin>")
+	ExtraArgs []string // extra args appended to the club host command
+	Container string   // container name (default "clubhouse-<pin>")
 
 	Control    *controlplane.Client // polls endpoints; nil → NewClient(ControlURL)
 	ControlURL string               // public control-plane URL used by the driving CLI
 	// ContainerControlURL is an optional Docker-internal route to that same
-	// control plane. Local compose uses http://slopball-control-plane:7777 while
+	// control plane. Local compose uses http://clubhouse-control-plane:7777 while
 	// laptops reach the published service through ControlURL.
 	ContainerControlURL string
 	// WaitTimeout bounds the wait for the box to announce itself as the new
@@ -145,7 +145,7 @@ type Options struct {
 	WaitTimeout time.Duration
 
 	// CLIVersion is the driving CLI's Version, compared to the container's
-	// `slopball --version` after boot (plan 23 drift guard).
+	// `club --version` after boot (plan 23 drift guard).
 	CLIVersion string
 	// RequireVersionMatch turns a version mismatch into a hard error; default
 	// is a loud warning so a stale --build-local image is visible.
@@ -192,7 +192,7 @@ func unpublishedVersion(version string) bool {
 func (o *Options) defaults() {
 	if o.BuildLocal {
 		if o.Image == "" {
-			o.Image = "slopball-box"
+			o.Image = "clubhouse-box"
 		}
 	} else {
 		if o.ImageRef == "" {
@@ -209,14 +209,14 @@ func (o *Options) defaults() {
 		}
 	}
 	if o.Container == "" {
-		o.Container = "slopball-" + o.PIN
+		o.Container = "clubhouse-" + o.PIN
 	}
 	if o.Network == "" {
 		// One network namespace per session. Sharing the box's was what let two
 		// sessions fight over port 3000 — and let the loser advertise a port it
 		// had not managed to bind. A named bridge preserves those namespaces and
 		// gives local infrastructure (notably the control plane) stable DNS.
-		o.Network = "slopball"
+		o.Network = "club"
 	}
 	if o.WaitTimeout <= 0 {
 		o.WaitTimeout = defaultWaitTimeout
@@ -350,7 +350,7 @@ func (o Options) validate() error {
 
 func buildLocal(ctx context.Context, r Runner, opt Options) error {
 	log.Infof("shipping build context to %s (%s)", r.Target(), humanBytes(len(opt.Binary)))
-	if err := r.Put(ctx, opt.Binary, buildDir+"/slopball"); err != nil {
+	if err := r.Put(ctx, opt.Binary, buildDir+"/club"); err != nil {
 		return fmt.Errorf("ship binary: %w", err)
 	}
 	if err := r.Put(ctx, []byte(dockerfile), buildDir+"/Dockerfile"); err != nil {
@@ -387,7 +387,7 @@ func pullImage(ctx context.Context, r Runner, opt Options) error {
 	// way it exists at all. So an unreachable/denied ref that the box already
 	// holds is the normal registry-less path, not a failure — warn and boot it.
 	// Staleness stays visible via checkVersion, which reads the *running*
-	// container's `slopball --version`.
+	// container's `club --version`.
 	if imagePresent(ctx, r, ref) {
 		log.Warnf("could not pull %s (%v) — booting the copy already on %s; if it is stale, rebuild it there with `make box-image`", ref, err, r.Target())
 		return nil
@@ -395,8 +395,8 @@ func pullImage(ctx context.Context, r Runner, opt Options) error {
 	return fmt.Errorf("docker pull %s: %w\n%s\n(hint: build the image on the box with `make box-image`; or `docker login` there for a private registry; or use --build-local --binary …)", ref, err, out)
 }
 
-// checkVersion compares the container's slopball --version to the driving CLI —
-// the guard for the original footgun, a box quietly running an older slopball
+// checkVersion compares the container's club --version to the driving CLI —
+// the guard for the original footgun, a box quietly running an older club
 // than the CLI driving it (that is how a box ended up not knowing `--dev`).
 func checkVersion(ctx context.Context, r Runner, opt Options) error {
 	if opt.CLIVersion == "" {
@@ -406,9 +406,9 @@ func checkVersion(ctx context.Context, r Runner, opt Options) error {
 	if err != nil {
 		// A container too old to answer --version is itself a staleness signal.
 		if opt.RequireVersionMatch {
-			return fmt.Errorf("box: --require-version-match: could not read the container's `slopball --version` (image too old?): %w", err)
+			return fmt.Errorf("box: --require-version-match: could not read the container's `club --version` (image too old?): %w", err)
 		}
-		log.Warnf("could not read container slopball --version: %v", err)
+		log.Warnf("could not read container club --version: %v", err)
 		return nil
 	}
 	got := parseVersionOutput(out)
@@ -419,19 +419,19 @@ func checkVersion(ctx context.Context, r Runner, opt Options) error {
 		// We asked for :latest precisely because this CLI has no published tag,
 		// so a different version is expected — warning here would be crying wolf
 		// on every dev run. (--require-version-match is refused up front.)
-		log.Infof("box runs slopball %s (from %s); this CLI is an unreleased build (%s) — versions are not comparable", got, opt.ImageRef, opt.CLIVersion)
+		log.Infof("box runs club %s (from %s); this CLI is an unreleased build (%s) — versions are not comparable", got, opt.ImageRef, opt.CLIVersion)
 		return nil
 	}
-	msg := fmt.Sprintf("box: container runs slopball %s but this CLI is %s — rebuild/pull to match", got, opt.CLIVersion)
+	msg := fmt.Sprintf("box: container runs club %s but this CLI is %s — rebuild/pull to match", got, opt.CLIVersion)
 	if opt.RequireVersionMatch {
-		return fmt.Errorf("%s (container %s is up on %s; `slopball box rm` to drop it)", msg, opt.Container, r.Target())
+		return fmt.Errorf("%s (container %s is up on %s; `club box rm` to drop it)", msg, opt.Container, r.Target())
 	}
 	log.Warnf("%s", msg)
 	return nil
 }
 
 func parseVersionOutput(out string) string {
-	// cobra default: "slopball version <X>" — take the last field of the first line.
+	// cobra default: "club version <X>" — take the last field of the first line.
 	line := strings.TrimSpace(strings.Split(out, "\n")[0])
 	fields := strings.Fields(line)
 	if len(fields) == 0 {
@@ -456,12 +456,12 @@ func normalizeVersion(v string) string {
 func dockerRun(opt Options) string {
 	var b strings.Builder
 	b.WriteString("docker run -d")
-	// slopball is PID 1 in this container, which makes it what the kernel
+	// club is PID 1 in this container, which makes it what the kernel
 	// re-parents orphans to — and Go reaps only children it Wait()s on, never an
 	// adopted one. git orphans a process per fetch (upload-pack outliving its
 	// parent, or the reverse), so the host accumulated one zombie per 2s tick
 	// until it hit the cgroup pids ceiling and could not fork at all. --init runs
-	// tini as PID 1 to reap them; slopball has no business being an init system.
+	// tini as PID 1 to reap them; club has no business being an init system.
 	b.WriteString(" --init")
 	fmt.Fprintf(&b, " --name %s", sh(opt.Container))
 	fmt.Fprintf(&b, " --network %s", sh(opt.Network))
@@ -475,7 +475,7 @@ func dockerRun(opt Options) string {
 	// this set, ListenAdvertise binds 0.0.0.0 and publishes the address; a
 	// separate bind-mode env is gone (ticket 06).
 	if opt.AdvertiseIP != "" {
-		fmt.Fprintf(&b, " -e SLOPBALL_ADVERTISE=%s", sh(opt.AdvertiseIP))
+		fmt.Fprintf(&b, " -e CLUB_ADVERTISE=%s", sh(opt.AdvertiseIP))
 	}
 	// Tell the dev server which port to bind rather than letting it pick and
 	// then silently fall back to another one.
@@ -486,7 +486,7 @@ func dockerRun(opt Options) string {
 		fmt.Fprintf(&b, " -e %s=%s", telemetry.EnvMode, sh(opt.Telemetry))
 	}
 	if u := opt.containerControlURL(); u != "" {
-		fmt.Fprintf(&b, " -e SLOPBALL_CONTROL=%s", sh(u))
+		fmt.Fprintf(&b, " -e CLUB_CONTROL=%s", sh(u))
 	}
 	if opt.envFilePath != "" {
 		// Invited identity (plan 44) — via --env-file, never -e KEY=VALUE.
@@ -497,8 +497,8 @@ func dockerRun(opt Options) string {
 	}
 	b.WriteString(" " + sh(opt.runImage()))
 
-	// slopball host args (ENTRYPOINT is `slopball`). A PIN is only legal on the
-	// internal boot verb — plain `slopball` creates and tells you the PIN.
+	// club host args (ENTRYPOINT is `club`). A PIN is only legal on the
+	// internal boot verb — plain `club` creates and tells you the PIN.
 	fmt.Fprintf(&b, " _host --pin %s", sh(opt.PIN))
 	if opt.SeedURL != "" {
 		fmt.Fprintf(&b, " --seed-url %s", sh(opt.SeedURL))
@@ -544,34 +544,34 @@ func memberEnvFilePath(opt Options) string {
 		// the caller surfaces this instead of writing a guessable name.
 		return ""
 	}
-	return "/tmp/slopball-env-" + hex.EncodeToString(b[:]) + ".env"
+	return "/tmp/clubhouse-env-" + hex.EncodeToString(b[:]) + ".env"
 }
 
 // memberEnvFile is the docker --env-file body for the invited box member.
 func memberEnvFile(opt Options) []byte {
 	var b strings.Builder
 	if opt.MemberID != "" {
-		fmt.Fprintf(&b, "SLOPBALL_MEMBER_ID=%s\n", opt.MemberID)
+		fmt.Fprintf(&b, "CLUB_MEMBER_ID=%s\n", opt.MemberID)
 	}
 	if opt.MemberSecret != "" {
-		fmt.Fprintf(&b, "SLOPBALL_MEMBER_SECRET=%s\n", opt.MemberSecret)
+		fmt.Fprintf(&b, "CLUB_MEMBER_SECRET=%s\n", opt.MemberSecret)
 	}
 	return []byte(b.String())
 }
 
-// Exec runs a slopball verb inside the box and returns its output (one-shot
+// Exec runs a club verb inside the box and returns its output (one-shot
 // commands like sync/monitor).
 func Exec(ctx context.Context, r Runner, container string, args ...string) (string, error) {
 	return r.Run(ctx, execCmd(container, false, args))
 }
 
-// ExecAttached runs a slopball verb inside the box with live I/O — the default
+// ExecAttached runs a club verb inside the box with live I/O — the default
 // for `box run`, so npm/dev-server logs stream back to the laptop until Ctrl-C.
 func ExecAttached(ctx context.Context, r Runner, container string, in io.Reader, out, errW io.Writer, args ...string) error {
 	return r.Stream(ctx, execCmd(container, false, args), in, out, errW)
 }
 
-// ExecDetached starts a long-running slopball verb inside the box with
+// ExecDetached starts a long-running club verb inside the box with
 // `docker exec -d` and returns once it is launched (no log stream).
 func ExecDetached(ctx context.Context, r Runner, container string, args ...string) error {
 	_, err := r.Run(ctx, execCmd(container, true, args))
@@ -587,7 +587,7 @@ func execCmd(container string, detach bool, args []string) string {
 	if detach {
 		flag = "-d "
 	}
-	return fmt.Sprintf("docker exec %s%s slopball %s", flag, sh(container), strings.Join(quoted, " "))
+	return fmt.Sprintf("docker exec %s%s club %s", flag, sh(container), strings.Join(quoted, " "))
 }
 
 // Logs returns the box container's logs.
@@ -751,14 +751,14 @@ func (o Options) controlClient() (*controlplane.Client, error) {
 	if u := o.controlURL(); u != "" {
 		return controlplane.NewClient(u), nil
 	}
-	return nil, fmt.Errorf("box: Control client or SLOPBALL_CONTROL required")
+	return nil, fmt.Errorf("box: Control client or CLUB_CONTROL required")
 }
 
 func (o Options) controlURL() string {
 	if u := strings.TrimSpace(o.ControlURL); u != "" {
 		return strings.TrimRight(u, "/")
 	}
-	return strings.TrimRight(strings.TrimSpace(os.Getenv("SLOPBALL_CONTROL")), "/")
+	return strings.TrimRight(strings.TrimSpace(os.Getenv("CLUB_CONTROL")), "/")
 }
 
 func (o Options) containerControlURL() string {

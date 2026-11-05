@@ -28,7 +28,7 @@ var testLocalPort atomic.Int64
 //
 // It is a GO SYMBOL on purpose, and there is deliberately no env var, flag or
 // file behind it: an operator cannot reach it, so ticket 21's "one supported
-// answer" still holds for every shipped binary — a slopball a human runs
+// answer" still holds for every shipped binary — a club a human runs
 // resolves DefaultPort and nothing else. It is process-global, so install it
 // before starting the code under test and let the cleanup put it back; the
 // separate-process tiers (internal/e2e) cannot see it at all and use the real

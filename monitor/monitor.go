@@ -1,4 +1,4 @@
-// Package monitor gives a live, read-only view of a slopball session for
+// Package monitor gives a live, read-only view of a club session for
 // hands-on testing. Prefer the control-plane view (--json, one resolved PIN);
 // --local keeps the on-disk path for machines with session state but no
 // control-plane reachability.
@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/placement"
-	"github.com/nwylynko/slopball-cli/reach"
-	"github.com/nwylynko/slopball-cli/runtime"
-	"github.com/nwylynko/slopball-cli/session"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/placement"
+	"github.com/nwylynko/clubhouse-cli/reach"
+	"github.com/nwylynko/clubhouse-cli/runtime"
+	"github.com/nwylynko/clubhouse-cli/session"
 )
 
 // Status is one session's live snapshot.
@@ -67,7 +67,7 @@ type Status struct {
 // constant compiled into the control plane, and a below-floor verdict rendered
 // here would be a SECOND copy of it — one that can disagree with the copy that
 // actually refuses, on a laptop that may be a release behind. The verdict lives
-// in `slopball-control admin versions`, which evaluates against its own
+// in `clubhouse-control admin versions`, which evaluates against its own
 // compiled-in floor. Blank means the member has never reported a version (a
 // binary from before the header, or one that has not called since); it renders
 // as a dash, never as an empty cell, because blank is "old or unknown" and an
@@ -159,7 +159,7 @@ func statusFor(ctx context.Context, home, pin string, client *controlplane.Clien
 			// raw endpoint ok: shown as published; the probe uses Dialable.
 			if ep, ok := sess.Endpoints[controlplane.EndpointGit]; ok {
 				// Show the published address — it is what the session actually
-				// advertises — but PROBE something dialable. A `slop://` URL
+				// advertises — but PROBE something dialable. A `club://` URL
 				// probed literally always reads as down, which would make the
 				// monitor call every healthy session-network host dead.
 				st.GitURL = ep.URL
@@ -169,7 +169,7 @@ func statusFor(ctx context.Context, home, pin string, client *controlplane.Clien
 			}
 			// Dev is the one endpoint a human OPENS, so the monitor shows the
 			// resolved address rather than the published one (plan 41) — a
-			// `slop://` URL on screen is something nobody can click. git is the
+			// `club://` URL on screen is something nobody can click. git is the
 			// other way round: it is published for machines, and `origin` is
 			// resolved where it is used.
 			if devURL, err := client.EndpointURL(ctx, pin, controlplane.EndpointDev); err == nil && devURL != "" {

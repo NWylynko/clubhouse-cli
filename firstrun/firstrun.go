@@ -1,4 +1,4 @@
-// Package firstrun is slopball's guided first run (plan 29): the questions, the
+// Package firstrun is club's guided first run (plan 29): the questions, the
 // detected defaults behind them, and this machine's prompt pre-fills — kept in
 // one vertical because a question, its default and its detection belong
 // together.
@@ -20,10 +20,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nwylynko/slopball-cli/devserver"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/harness"
-	"github.com/nwylynko/slopball-cli/session"
+	"github.com/nwylynko/clubhouse-cli/devserver"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/harness"
+	"github.com/nwylynko/clubhouse-cli/session"
 )
 
 // Agent is one role's intelligence: which CLI, and optionally which model.
@@ -86,7 +86,7 @@ const (
 
 // Detect builds the pre-filled plan from this machine: the first harness CLI
 // actually on PATH runs every role, and a seed repo's own origin pre-fills the
-// mirror. Nothing slopball can detect is ever asked (§9.3).
+// mirror. Nothing club can detect is ever asked (§9.3).
 func Detect(seedDir string) Plan {
 	var p Plan
 	for _, a := range harness.Available() {
@@ -207,7 +207,7 @@ func Ask(in io.Reader, out io.Writer, base Plan, asked map[string]bool, remember
 		// keep it — and the mirror stays opt-in (plan 37), so pressure to say
 		// yes here is pressure in the wrong direction. Naming the way out makes
 		// blank an actual default instead of a decision.
-		fmt.Fprintf(out, "\n  blank is safe: `slopball export <path>` copies your workspace out whenever you like,\n"+
+		fmt.Fprintf(out, "\n  blank is safe: `club export <path>` copies your workspace out whenever you like,\n"+
 			"  as a plain git repo with no account involved.\n")
 		p.MirrorURL = q.line(fmt.Sprintf("  github snapshot   (blank = off)%s > ", defaultHint(p.MirrorURL)), p.MirrorURL)
 		if p.MirrorURL != "" {
@@ -357,7 +357,7 @@ type machineDefaults struct {
 	BoxTarget string `json:"boxTarget,omitempty"`
 	MirrorURL string `json:"mirrorUrl,omitempty"`
 	// Telemetry is NOT the wizard's to answer — it is this machine's standing
-	// decision, owned by `slopball telemetry on|off` (plan 46 ticket 12). It is
+	// decision, owned by `club telemetry on|off` (plan 46 ticket 12). It is
 	// carried here only so SaveDefaults writes it back unchanged: two writers
 	// share this file, and neither may clobber the other's keys.
 	Telemetry string `json:"telemetry,omitempty"`

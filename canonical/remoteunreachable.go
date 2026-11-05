@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nwylynko/slopball-cli/sessionnet"
+	"github.com/nwylynko/clubhouse-cli/sessionnet"
 )
 
 // gitDetailMax bounds how much of git's own error is carried into the sentence.
@@ -17,7 +17,7 @@ const gitDetailMax = 160
 // on another machine, said in one sentence a human can act on.
 //
 // Session 2lmymb (2026-08-17): a member whose feed said the conductor was off
-// ran `slopball conductor` and got
+// ran `club conductor` and got
 //
 //	open remote canonical http://127.0.0.1:62904/canonical.git: git remote
 //	update --prune: fatal: unable to access 'http://127.0.0.1:59297/canonical
@@ -36,14 +36,14 @@ const gitDetailMax = 160
 type RemoteCanonicalError struct {
 	PIN string
 	// Endpoint is the session's git endpoint as it is published — the
-	// `slop://<pin>/git/canonical.git` address or a machine URL. Never the
+	// `club://<pin>/git/canonical.git` address or a machine URL. Never the
 	// loopback forwarder the caller dialled.
 	Endpoint string
 	Err      error
 }
 
 // ExplainRemoteOpenFailure wraps err as the sentence above. It is the one place
-// that phrasing lives: `slopball conductor` in a terminal and the join daemon's
+// that phrasing lives: `club conductor` in a terminal and the join daemon's
 // placement loop (whose reason rides the lease onto every console) both go
 // through it, so the two screens cannot say different things about one failure.
 func ExplainRemoteOpenFailure(pin, endpoint string, err error) error {
@@ -65,8 +65,8 @@ func (e *RemoteCanonicalError) Error() string {
 
 // cause is what happened, then what to do about it.
 func (e *RemoteCanonicalError) cause() string {
-	join := fmt.Sprintf("`slopball join %s`", e.PIN)
-	monitor := fmt.Sprintf("`slopball monitor --pin %s`", e.PIN)
+	join := fmt.Sprintf("`club join %s`", e.PIN)
+	monitor := fmt.Sprintf("`club monitor --pin %s`", e.PIN)
 	onSessionNet := sessionnet.IsSessionURL(e.Endpoint)
 
 	// The forwarder knows things git cannot: it is what talked to the relay.

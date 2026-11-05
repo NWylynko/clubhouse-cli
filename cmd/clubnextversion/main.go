@@ -1,4 +1,4 @@
-// Command slopnextversion derives the next release number from the wire-change
+// Command clubnextversion derives the next release number from the wire-change
 // ledger and prints what cutting it would take.
 //
 // It reads `.wire-changes/` and the last tag reachable from HEAD, and writes a
@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/nwylynko/slopball-cli/internal/nextversion"
+	"github.com/nwylynko/clubhouse-cli/internal/nextversion"
 )
 
 func main() {

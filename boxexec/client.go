@@ -9,7 +9,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/nwylynko/slopball-cli/sessionnet"
+	"github.com/nwylynko/clubhouse-cli/sessionnet"
 )
 
 // Client runs commands on the session's box over the session network.

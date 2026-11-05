@@ -1,7 +1,7 @@
-// Package cli defines slopball's command surface. slopball is mostly a CLI, but
+// Package cli defines club's command surface. club is mostly a CLI, but
 // its primary users are the *agents*, not the humans (MASTERPLAN §13) — so the
 // output is kept machine-legible and the human-facing verbs are deliberately few
-// (`slopball` to host, `slopball join` to join); the rest are driven by the
+// (`club` to host, `club join` to join); the rest are driven by the
 // in-repo agent contract.
 package cli
 
@@ -12,17 +12,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/harness"
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/harness"
+	"github.com/nwylynko/clubhouse-cli/logx"
 	"github.com/spf13/cobra"
 )
 
 var traceOnce sync.Once
 
 // setupTracing wires every git invocation into the debug logger, so a
-// SLOPBALL_LOG=debug run shows the full git conversation the host/join loops
+// CLUB_LOG=debug run shows the full git conversation the host/join loops
 // have with the session. No-op unless debug is enabled, and installed at most once.
 func setupTracing() {
 	traceOnce.Do(func() {
@@ -65,7 +65,7 @@ func join(args []string) string {
 }
 
 // Version is the build version, overridden at link time via
-// -ldflags "-X github.com/nwylynko/slopball/internal/cli.Version=<v>".
+// -ldflags "-X github.com/nwylynko/clubhouse/internal/cli.Version=<v>".
 var Version = "0.0.0-dev"
 
 // controlFlag is an optional --control override (tests). Empty → BaseURL().
@@ -83,19 +83,19 @@ func stub(plan string) func(*cobra.Command, []string) error {
 // NewRootCmd builds the full command tree.
 func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "slopball",
+		Use:   "club",
 		Short: "Coordinate many AI agents building one live product",
-		Long: "slopball lets multiple AI agents dump code into one project at once and keeps the\n" +
+		Long: "Clubhouse lets multiple AI agents dump code into one project at once and keeps the\n" +
 			"result coherent and runnable. Run with no arguments to host a session, or\n" +
-			"`slopball join <pin>` to join one. Most verbs are invoked by your agent (via the\n" +
-			"contract slopball installs into the repo), not by you.",
+			"`club join <pin>` to join one. Most verbs are invoked by your agent (via the\n" +
+			"contract club installs into the repo), not by you.",
 		Version:       Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE:          runHost,
 	}
 	// Two versions, because there are two stamps and they can disagree. Version
-	// is this build; controlplane.ClientVersion is what rides X-Slopball-Version
+	// is this build; controlplane.ClientVersion is what rides X-Club-Version
 	// on every request and therefore what a 426 refusal quotes back — and since
 	// plan 49 they come from different places (this module's tag, and the client
 	// module version a services build pins). Printing only the first would leave
@@ -118,7 +118,7 @@ func NewRootCmd() *cobra.Command {
 	// The machine-to-machine door into the same host loop. A PIN names a session
 	// that already exists, so only a machine resuming/claiming one may pass it —
 	// `box add` boots the container with `_host --pin <pin>` (plan 27). Humans
-	// create with plain `slopball` and join with `slopball join <pin>`.
+	// create with plain `club` and join with `club join <pin>`.
 	hostCmd := &cobra.Command{
 		Use:    "_host",
 		Short:  "Host a session under a given PIN (internal: used by `box add`)",
@@ -256,25 +256,25 @@ func NewRootCmd() *cobra.Command {
 	mon.Flags().Duration("interval", 2*time.Second, "refresh interval")
 	addPinFlag(mon)
 
-	// `slopball update` — the verb the end-of-session nudge names. A human verb,
+	// `club update` — the verb the end-of-session nudge names. A human verb,
 	// so it takes no flags and asks no questions: which release, which asset and
-	// where it lands are all already decided (slopball-cli/update).
+	// where it lands are all already decided (clubhouse-cli/update).
 	updateCmd := &cobra.Command{
 		Use:   "update",
-		Short: "Replace this slopball with the latest release",
+		Short: "Replace this club with the latest release",
 		Args:  cobra.NoArgs,
 		RunE:  runUpdate,
 	}
 
 	// `control` and `relay` are NOT verbs here. They are operator services
-	// shipped as `slopball-control` and `slopball-relay` (plan 39): different
+	// shipped as `clubhouse-control` and `clubhouse-relay` (plan 39): different
 	// audience, different release cadence, linux-only. Keeping them on this
 	// binary is what made every teammate's laptop link a postgres driver.
 	root.AddCommand(hostCmd, join, syncCmd, push, pull, repoint, runCmd, conductorCmd, daemon, elect, take, handOff, services, newMembersCmd(), newAccessCmd(), newTelemetryCmd(), newReportCmd(), mon, newBoxCmd(), newOpenCmd(), newExportCmd(), newHarnessVerbCmd(harness.Claude), newHarnessVerbCmd(harness.Codex), newSiteCmd(), newDevSetupCmd(), updateCmd)
 	return root
 }
 
-// addHostFlags defines the flags shared by the human create verb (`slopball`)
+// addHostFlags defines the flags shared by the human create verb (`club`)
 // and the internal boot verb (`_host`), so the two cannot drift. Only `_host`
 // adds --pin/--takeover on top.
 func addHostFlags(cmd *cobra.Command) {
@@ -309,31 +309,31 @@ func newBoxCmd() *cobra.Command {
 		Use:   "add <user@host>",
 		Short: "Provision a container on the target, seed the session, and start hosting on it",
 		Long: "Default: docker pull the published multi-arch image matching this CLI's version\n" +
-			"(ghcr.io/nwylynko/slopball-box:<version>, or --image) and run it.\n" +
+			"(ghcr.io/nwylynko/clubhouse-box:<version>, or --image) and run it.\n" +
 			"No binary is shipped and nothing is built on the box.\n\n" +
 			"No registry needed: if the pull fails but the box already holds that image,\n" +
 			"the box boots it with a warning. Build it there with `make box-image` — the\n" +
 			"registry-less path while CI has published no tag.\n\n" +
-			"For developing slopball itself or air-gapped boxes, pass --build-local\n" +
+			"For developing club itself or air-gapped boxes, pass --build-local\n" +
 			"--binary <linux/amd64 path> to ship + docker build on the target (the old\n" +
 			"plan-14 path). Private registries: `docker login` on the box first\n" +
-			"(slopball never ships registry credentials).",
+			"(club never ships registry credentials).",
 		RunE: runBoxAdd,
 	}
-	add.Flags().Bool("build-local", false, "build the image on the box from a shipped binary instead of pulling a published image (for developing slopball / registry-less boxes)")
-	add.Flags().String("binary", "", "path to the slopball linux/amd64 binary to ship (required with --build-local; ignored on the pull path)")
-	add.Flags().String("image", "", "image ref to pull (default: ghcr.io/nwylynko/slopball-box:<CLI-version>); with --build-local, the local tag to build (default slopball-box)")
+	add.Flags().Bool("build-local", false, "build the image on the box from a shipped binary instead of pulling a published image (for developing club / registry-less boxes)")
+	add.Flags().String("binary", "", "path to the club linux/amd64 binary to ship (required with --build-local; ignored on the pull path)")
+	add.Flags().String("image", "", "image ref to pull (default: ghcr.io/nwylynko/clubhouse-box:<CLI-version>); with --build-local, the local tag to build (default clubhouse-box)")
 	add.Flags().String("pull", "always", "when to docker pull on the default path: always|missing")
-	add.Flags().Bool("require-version-match", false, "error when the container's slopball --version differs from this CLI (default: warn)")
+	add.Flags().Bool("require-version-match", false, "error when the container's club --version differs from this CLI (default: warn)")
 	add.Flags().String("seed", "", "local directory to seed the box's canonical from")
 	add.Flags().String("seed-url", "", "override the git URL the box seeds its canonical from (default: the session's live canonical, resolved from the control plane)")
 	add.Flags().Bool("serve-only", false, "box serves canonical + tracks main but runs no on-box merger")
 	add.Flags().String("dev", "", "dev-server command the box supervises (e.g. \"npm run dev\"); its logs are served at /logs for the elected conductor's error-watcher")
 	add.Flags().String("install", "", "dependency-install command the box runs in canonical/work before --dev (e.g. \"npm install\"); empty with --dev auto-detects from lockfiles")
 	add.Flags().String("brief", "", "one line saying what we're building; the box records it on main and the setup role scaffolds from it")
-	add.Flags().String("volume", "", "host path to mount at the box's $HOME/.slopball (persist across restarts)")
+	add.Flags().String("volume", "", "host path to mount at the box's $HOME/.club (persist across restarts)")
 	add.Flags().Bool("local", false, "provision on this machine instead of over ssh (you are already on the box)")
-	add.Flags().String("name", "", "container name (default slopball-<pin>)")
+	add.Flags().String("name", "", "container name (default clubhouse-<pin>)")
 	add.Flags().Bool("drain", false, "quiesce expectation: catch-up main from --seed-url / current host before flipping rendezvous")
 	add.Flags().Bool("no-cutover", false, "provision only — do not flip the session rendezvous onto the box")
 	addPinFlag(add)
@@ -368,7 +368,7 @@ func newBoxCmd() *cobra.Command {
 }
 
 // rootPinGuidance returns the message to fail with when a human hands the root
-// (create) verb a PIN. `slopball --pin x` used to mean create-or-resume-or-
+// (create) verb a PIN. `club --pin x` used to mean create-or-resume-or-
 // silently-demote depending on invisible on-disk state; a PIN now always means
 // "join a session that exists" (plan 27). Returns "" for every other invocation
 // — subcommands (`join`, `sync`, `_host`, …) take PINs as before.
@@ -387,13 +387,13 @@ func rootPinGuidance(root *cobra.Command, args []string) string {
 		default:
 			continue
 		}
-		return fmt.Sprintf("a PIN identifies an existing session — join it with 'slopball join %s'. "+
-			"'slopball' with no arguments starts a new one.", pin)
+		return fmt.Sprintf("a PIN identifies an existing session — join it with 'club join %s'. "+
+			"'club' with no arguments starts a new one.", pin)
 	}
 	return ""
 }
 
-// Run executes slopball with the given args, writing to out/errW, and returns a
+// Run executes club with the given args, writing to out/errW, and returns a
 // process exit code.
 func Run(args []string, out, errW io.Writer) int {
 	setupTracing()

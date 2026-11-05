@@ -9,21 +9,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/canonical"
-	"github.com/nwylynko/slopball-cli/conductor"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/detect"
-	"github.com/nwylynko/slopball-cli/devserver"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/gitserver"
-	"github.com/nwylynko/slopball-cli/harness"
-	"github.com/nwylynko/slopball-cli/hoststart"
-	"github.com/nwylynko/slopball-cli/migrate"
-	"github.com/nwylynko/slopball-cli/netbind"
-	"github.com/nwylynko/slopball-cli/placement"
-	"github.com/nwylynko/slopball-cli/runfile"
-	"github.com/nwylynko/slopball-cli/runtime"
-	"github.com/nwylynko/slopball-cli/sessionnet"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	"github.com/nwylynko/clubhouse-cli/conductor"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/detect"
+	"github.com/nwylynko/clubhouse-cli/devserver"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/gitserver"
+	"github.com/nwylynko/clubhouse-cli/harness"
+	"github.com/nwylynko/clubhouse-cli/hoststart"
+	"github.com/nwylynko/clubhouse-cli/migrate"
+	"github.com/nwylynko/clubhouse-cli/netbind"
+	"github.com/nwylynko/clubhouse-cli/placement"
+	"github.com/nwylynko/clubhouse-cli/runfile"
+	"github.com/nwylynko/clubhouse-cli/runtime"
+	"github.com/nwylynko/clubhouse-cli/sessionnet"
 )
 
 // newPlacementLoop builds this client's half of automatic placement (plan 30).
@@ -118,7 +118,7 @@ func (j *Joined) promoteToCanonical(ctx context.Context) error {
 	profile := detect.Probe()
 	// On the session network, or not at all: the address this member publishes
 	// is read by machines on other networks, so it has to name the session's
-	// git ROLE (slop://…) — the same registration the host it replaces held.
+	// git ROLE (club://…) — the same registration the host it replaces held.
 	// A session with no relay keeps the direct address, as before.
 	sessNet, err := j.sessionNetFor(ctx, "git")
 	if err != nil {
@@ -214,7 +214,7 @@ func (j *Joined) startDev(ctx context.Context) error {
 	// network for the dev service, and the dev/demo endpoints announced once
 	// something is listening on the constant port (ticket 21). Without both,
 	// the control plane keeps whatever the previous owner published — for
-	// session wioqg5 that was the departed box's slop://…/dev, so every dial
+	// session wioqg5 that was the departed box's club://…/dev, so every dial
 	// answered no-holder while this member held the lease and ran the process.
 	sess, err := j.Control.Session(ctx, j.Session.PIN)
 	if err != nil {
@@ -304,8 +304,8 @@ func (j *Joined) startConductor(ctx context.Context) error {
 	if host == nil {
 		// The reason this returns rides the lease back to the control plane
 		// (placement.take → ReportStartFailure) and is rendered verbatim by the
-		// console, `slopball monitor` and placement.Describe — so it is the same
-		// sentence `slopball conductor` prints in a terminal, built around the
+		// console, `club monitor` and placement.Describe — so it is the same
+		// sentence `club conductor` prints in a terminal, built around the
 		// address the session publishes rather than the forwarder git dialled.
 		published := j.publishedGitEndpoint(ctx)
 		url, _, err := j.Control.GitURL(ctx, j.Session.PIN)

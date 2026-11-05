@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/nwylynko/slopball-cli/logx"
-	"github.com/nwylynko/slopball-cli/sessionnet"
+	"github.com/nwylynko/clubhouse-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/sessionnet"
 )
 
 // HolderOptions publishes the dev server onto the session network (plan 41).
@@ -54,7 +54,7 @@ type Holder struct {
 // into it.
 //
 // It is a byte-level TCP splice rather than `srv.Serve(sln)` the way the git
-// server does it, and the difference is not stylistic: slopball *is* the git
+// server does it, and the difference is not stylistic: club *is* the git
 // server, whereas the dev server is somebody else's child process. Splicing is
 // also what makes websocket upgrades — HMR — ride it for free, since nothing in
 // the path parses HTTP at all.

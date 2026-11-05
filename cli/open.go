@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nwylynko/slopball-cli/session"
+	"github.com/nwylynko/clubhouse-cli/session"
 	"github.com/spf13/cobra"
 )
 
@@ -67,7 +67,7 @@ func resolveOpenPIN(cmd *cobra.Command, args []string) (string, error) {
 			return "", err
 		}
 		if _, err := session.Load(pin); err != nil {
-			return "", fmt.Errorf("no local session %s — run slopball to host or slopball join %s", pin, pin)
+			return "", fmt.Errorf("no local session %s — run club to host or club join %s", pin, pin)
 		}
 		live := livePinSet()
 		if !live[pin] {
@@ -81,7 +81,7 @@ func resolveOpenPIN(cmd *cobra.Command, args []string) (string, error) {
 	}
 	switch len(entries) {
 	case 0:
-		return "", fmt.Errorf("no live session on this machine — run slopball to host or slopball join <pin>")
+		return "", fmt.Errorf("no live session on this machine — run club to host or club join <pin>")
 	case 1:
 		pin := entries[0].PIN
 		if err := awaitWorkTree(cmd, pin); err != nil {
@@ -91,7 +91,7 @@ func resolveOpenPIN(cmd *cobra.Command, args []string) (string, error) {
 		return pin, nil
 	default:
 		if !openTTY(cmd) {
-			return "", fmt.Errorf("%d live sessions — pass slopball open <pin> or run on a terminal", len(entries))
+			return "", fmt.Errorf("%d live sessions — pass club open <pin> or run on a terminal", len(entries))
 		}
 		pin, err := PickLiveSession(cmd, entries)
 		if err != nil {
@@ -137,7 +137,7 @@ func livePinSet() map[string]bool {
 	return m
 }
 
-// PickLiveSession is the menu `slopball open` shows when this machine holds
+// PickLiveSession is the menu `club open` shows when this machine holds
 // more than one live session, and the answer it accepts.
 //
 // Exported because it only ever runs on a terminal — resolveOpenPIN reaches it
@@ -209,27 +209,27 @@ func spawnShell(cmd *cobra.Command, pin, workPath string) error {
 	return spawnInSessionWork(cmd, pin, workPath, shell, nil)
 }
 
-// spawnInSessionWork runs bin in the session work tree with `slopball` on PATH,
+// spawnInSessionWork runs bin in the session work tree with `club` on PATH,
 // whatever the running binary is called on disk — an installed release is named
-// slopball-<os>-<arch>, and an agent told to run `slopball sync` in that
+// club-<os>-<arch>, and an agent told to run `club sync` in that
 // subshell has to find something.
 //
 // It is what both doors into a session share: `open`'s subshell and the
-// `slopball claude` / `slopball codex` verbs, which are the same act with the
+// `club claude` / `club codex` verbs, which are the same act with the
 // agent CLI in the shell's place.
 func spawnInSessionWork(cmd *cobra.Command, pin, workPath, bin string, args []string) error {
-	env := append(os.Environ(), "SLOPBALL_PIN="+pin)
+	env := append(os.Environ(), "CLUB_PIN="+pin)
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	if filepath.Base(exe) != "slopball" {
-		binDir, err := os.MkdirTemp("", "slopball-open-")
+	if filepath.Base(exe) != "club" {
+		binDir, err := os.MkdirTemp("", "clubhouse-open-")
 		if err != nil {
 			return err
 		}
 		defer os.RemoveAll(binDir)
-		link := filepath.Join(binDir, "slopball")
+		link := filepath.Join(binDir, "club")
 		if err := os.Symlink(exe, link); err != nil {
 			script := "#!/bin/sh\nexec " + strconv.Quote(exe) + " \"$@\"\n"
 			if err := os.WriteFile(link, []byte(script), 0o755); err != nil {

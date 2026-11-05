@@ -1,6 +1,6 @@
 // Package clientaddr resolves the client address both services key quotas on
 // (plan 45 step 0 / ADR 0005). The subject is configuration, never inference:
-// SLOPBALL_PROXY_HOPS says how many reverse-proxy hops sit in front, and
+// CLUB_PROXY_HOPS says how many reverse-proxy hops sit in front, and
 // X-Forwarded-For is read from the right — or ignored entirely at the default
 // of zero.
 package clientaddr
@@ -15,20 +15,20 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 // EnvHops is the environment variable both services read.
-const EnvHops = "SLOPBALL_PROXY_HOPS"
+const EnvHops = "CLUB_PROXY_HOPS"
 
-// HopsFromEnv returns SLOPBALL_PROXY_HOPS, defaulting to 0. A missing or
+// HopsFromEnv returns CLUB_PROXY_HOPS, defaulting to 0. A missing or
 // unparseable value is zero (peer socket only) — fail closed, never open.
 func HopsFromEnv() int {
 	n, _ := hopsFromEnv()
 	return n
 }
 
-// Configured reports whether SLOPBALL_PROXY_HOPS was SET, as distinct from
+// Configured reports whether CLUB_PROXY_HOPS was SET, as distinct from
 // being zero.
 //
 // The distinction is the whole point on a new platform. Zero is a real answer —

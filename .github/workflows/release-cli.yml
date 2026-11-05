@@ -1,7 +1,7 @@
 name: release-cli
 
 # Cross-compile the laptop CLI and stamp controlplane.DefaultURL from the
-# repository variable SLOPBALL_DEFAULT_CONTROL. A local `make build` needs no
+# repository variable CLUB_DEFAULT_CONTROL. A local `make build` needs no
 # stamp (loopback default); this is the delivery path for a deployed control
 # plane (plan 45b).
 #
@@ -13,7 +13,7 @@ name: release-cli
 #
 # THIS REPO, not the monorepo (plan 49 phase B). The monorepo's copy of this
 # workflow checked out a tree that no longer contained the CLI and failed on
-# `no required module provides package .../cmd/slopball` — it had been dead
+# `no required module provides package .../cmd/club` — it had been dead
 # since the split and nothing said so, because no tag had been cut since.
 #
 # The same tag fires box-image.yml, so the CLI and the box image it pulls are
@@ -106,12 +106,12 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Require SLOPBALL_DEFAULT_CONTROL
+      - name: Require CLUB_DEFAULT_CONTROL
         id: control
         run: |
-          url="${{ vars.SLOPBALL_DEFAULT_CONTROL }}"
+          url="${{ vars.CLUB_DEFAULT_CONTROL }}"
           if [ -z "$url" ]; then
-            echo "Set repository variable SLOPBALL_DEFAULT_CONTROL to the deployment control-plane URL." >&2
+            echo "Set repository variable CLUB_DEFAULT_CONTROL to the deployment control-plane URL." >&2
             exit 1
           fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
@@ -125,13 +125,13 @@ jobs:
         run: |
           set -eu
           for p in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
-            test -s "dist/slopball-$p" || { echo "missing dist/slopball-$p" >&2; exit 1; }
+            test -s "dist/club-$p" || { echo "missing dist/club-$p" >&2; exit 1; }
           done
           # The host-arch one is the only asset this runner can execute, so it is
           # the one that can prove the tag and the control URL actually landed.
           #
           # `--version` reports BOTH stamps: the build's own version and the wire
-          # version it presents in X-Slopball-Version. They are separate link
+          # version it presents in X-Club-Version. They are separate link
           # flags, so one can land while the other does not — and a missing wire
           # stamp is not a cosmetic defect. It presents 0.0.0-dev, which is below
           # every non-empty floor, so the day a floor first exists that release
@@ -141,7 +141,7 @@ jobs:
           # This is asserted HERE rather than in a test on purpose (plan 49 step
           # 4): a `go test` binary is unstamped by construction, so the only
           # build where these can actually be wrong is the released one.
-          got="$(./dist/slopball-linux-amd64 --version)"
+          got="$(./dist/club-linux-amd64 --version)"
           echo "linux-amd64 reports: $got"
           echo "$got" | grep -q "(wire " || {
             echo "binary does not report its wire version: $got" >&2; exit 1; }
@@ -158,18 +158,18 @@ jobs:
               echo "$got" | grep -q "(wire ${GITHUB_REF_NAME})" || {
                 echo "binary presents a wire version that is not the tag: $got" >&2; exit 1; } ;;
           esac
-          ./dist/slopball-linux-amd64 --help >/dev/null
+          ./dist/club-linux-amd64 --help >/dev/null
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: slopball-cli
-          path: dist/slopball-*
+          name: clubhouse-cli
+          path: dist/club-*
 
   # THE PUBLISH IS A SEPARATE JOB SO A HUMAN CAN STAND IN FRONT OF IT (plan 49).
   #
   # The build above is fix-forward: a bad one costs a re-push. The release below
   # is not — it is the thing `install.sh` resolves and the thing
-  # slopball.wylynko.dev/version reports to every installed client, and once
+  # clubhouse.sh/version reports to every installed client, and once
   # strangers have pulled it, it is out. So the artifacts are built
   # unconditionally and PUBLISHED only after the `release` environment's required
   # reviewer says yes. Fix-forward is for code, not for artifacts strangers
@@ -190,10 +190,10 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: slopball-cli
+          name: clubhouse-cli
           path: dist
       - name: Publish the GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/slopball-*
+          files: dist/club-*
           generate_release_notes: true

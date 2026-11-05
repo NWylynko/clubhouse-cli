@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	sbGit "github.com/nwylynko/slopball-cli/git"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
 )
 
 // Config is the optional mirror target. Empty RemoteURL disables mirroring.
@@ -63,7 +63,7 @@ func (m *Mirror) PushNow(ctx context.Context) error {
 		return err
 	}
 
-	remote := "slopball-durability"
+	remote := "clubhouse-durability"
 	// Token-free URL only — a credential helper reads the token from the
 	// process environment on each push. Splicing it into the remote URL used
 	// to write it into .git/config for anything that can read the directory.
@@ -98,10 +98,10 @@ func (m *Mirror) PushNow(ctx context.Context) error {
 // mirrorTokenEnv is what the credential-helper shim reads. Distinct from
 // GITHUB_TOKEN so hermetic git Env can carry exactly the value we set without
 // depending on whether the parent process exported the public name.
-const mirrorTokenEnv = "SLOPBALL_MIRROR_TOKEN"
+const mirrorTokenEnv = "CLUB_MIRROR_TOKEN"
 
 // mirrorCredentialHelper is an in-line git credential helper. git shells it,
-// so $SLOPBALL_MIRROR_TOKEN expands from the push process's environment.
+// so $CLUB_MIRROR_TOKEN expands from the push process's environment.
 const mirrorCredentialHelper = `!f() { echo username=x-access-token; echo password=$` + mirrorTokenEnv + `; }; f`
 
 func httpRemote(url string) bool {

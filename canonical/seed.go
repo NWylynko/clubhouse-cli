@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	sbGit "github.com/nwylynko/slopball-cli/git"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
 )
 
 // Seeding a canonical from a local directory (plan 33).
@@ -97,7 +97,7 @@ func SeedRemote(ctx context.Context, gitURL, dir string, id sbGit.Identity) erro
 	if err := PreflightSeedDir(dir); err != nil {
 		return err
 	}
-	tmp, err := os.MkdirTemp("", "slopball-seed-*")
+	tmp, err := os.MkdirTemp("", "clubhouse-seed-*")
 	if err != nil {
 		return err
 	}

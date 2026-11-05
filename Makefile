@@ -1,4 +1,4 @@
-# slopball-cli — the client module's own build.
+# clubhouse-cli — the client module's own build.
 #
 # This module RELEASES ITSELF (plan 49 phase B). The monorepo can still build a
 # CLI through `go.work` for local development, but the four artifacts a user
@@ -8,7 +8,7 @@
 #
 # That was not a preference. After the split the monorepo's release-cli.yml
 # checked out a tree with no CLI in it: `no required module provides package
-# github.com/nwylynko/slopball-cli/cmd/slopball`, every time, and box-image.yml
+# github.com/nwylynko/clubhouse-cli/cmd/club`, every time, and box-image.yml
 # still named `internal/box/Dockerfile.ci` — a path that had moved here. Both
 # had been dead since the split and nothing said so, because neither had been
 # triggered.
@@ -18,8 +18,8 @@
 # went on printing an address that no longer resolved. CI passes the control URL
 # in from a repository variable; a local build has no default but loopback.
 
-BINARY  := slopball
-PKG     := ./cmd/slopball
+BINARY  := club
+PKG     := ./cmd/club
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev)
 GO      ?= go
 
@@ -27,17 +27,17 @@ GO      ?= go
 # on purpose: a clean checkout has no deployment to name, so `make build` needs
 # no input and the binary keeps its loopback default — the property ADR 0006
 # decision 5 protects. CI overrides it on the command line from the repository
-# variable SLOPBALL_DEFAULT_CONTROL, and a command-line assignment beats this.
+# variable CLUB_DEFAULT_CONTROL, and a command-line assignment beats this.
 CONTROL_URL ?=
 
-LDFLAGS := -s -w -X github.com/nwylynko/slopball-cli/cli.Version=$(VERSION)
+LDFLAGS := -s -w -X github.com/nwylynko/clubhouse-cli/cli.Version=$(VERSION)
 ifneq ($(strip $(CONTROL_URL)),)
-LDFLAGS += -X github.com/nwylynko/slopball-cli/controlplane.DefaultURL=$(CONTROL_URL)
+LDFLAGS += -X github.com/nwylynko/clubhouse-cli/controlplane.DefaultURL=$(CONTROL_URL)
 endif
 # Every binary that TALKS to the control plane also stamps the version it
 # presents on the wire (plan 48). An unstamped build presents 0.0.0-dev, which a
 # real floor refuses — fail-closed on purpose.
-LDFLAGS += -X github.com/nwylynko/slopball-cli/controlplane.ClientVersion=$(VERSION)
+LDFLAGS += -X github.com/nwylynko/clubhouse-cli/controlplane.ClientVersion=$(VERSION)
 
 # Static single binary: CGO off so it runs on a clean machine with nothing
 # installed — the plan-00 requirement everything else depends on.
@@ -45,7 +45,7 @@ export CGO_ENABLED := 0
 
 # Every build output lands in dist/ under its own platform-suffixed name. The
 # name is CONTRACTUAL: scripts/install.sh derives it from `uname`, and the
-# release workflow uploads `dist/slopball-*` under exactly these names. All
+# release workflow uploads `dist/club-*` under exactly these names. All
 # three are held together by scripts/installer_test.go — change one and it says
 # so, because nothing else would notice until an install 404'd.
 HOSTBIN := dist/$(BINARY)-$(shell $(GO) env GOOS)-$(shell $(GO) env GOARCH)
@@ -92,7 +92,7 @@ test:
 
 # --- The wire (plan 48, split here by plan 49 step 4) ---------------------------
 # A guard belongs in the repo where the change it catches is made. The shapes an
-# already-installed slopball can see — the control-plane HTTP types, the
+# already-installed club can see — the control-plane HTTP types, the
 # session-network framing, the telemetry envelope, the relay ticket — have their
 # SOURCE in this module, so the tripwire that catches them moving lives here, and
 # so does the ledger that classifies the move and the tool that turns it into a
@@ -104,7 +104,7 @@ test:
 # commit — see .wire-changes/README.md. `make test` pins the file, so an
 # unclassified drift is red before it is tagged.
 wire-snapshot:
-	@$(GO) run ./cmd/slopwire .
+	@$(GO) run ./cmd/clubwire .
 
 # The release derivation: the next version is DERIVED from the pending
 # `.wire-changes/` entries and the last tag reachable from HEAD, never chosen —
@@ -119,18 +119,18 @@ wire-snapshot:
 # append-only log. A tag pushed before the private monorepo's `make test` is
 # green on that commit burns the number forever.
 next-version:
-	@$(GO) run ./cmd/slopnextversion .
+	@$(GO) run ./cmd/clubnextversion .
 
 # The one writing step, and step one of the printed sequence: delete the pending
 # entries and append their sentences to CHANGELOG.md under the derived heading.
 next-version-consume:
-	@$(GO) run ./cmd/slopnextversion -consume .
+	@$(GO) run ./cmd/clubnextversion -consume .
 
 # --- The box image ------------------------------------------------------------
-# Published as ghcr.io/nwylynko/slopball-box:<version> by .github/workflows/
+# Published as ghcr.io/nwylynko/clubhouse-box:<version> by .github/workflows/
 # box-image.yml on the same tag that cuts the CLI release, so the CLI and the
 # image it pulls are ONE release rather than two things that can drift.
-BOX_IMAGE ?= ghcr.io/nwylynko/slopball-box
+BOX_IMAGE ?= ghcr.io/nwylynko/clubhouse-box
 BOX_PLATFORMS ?= linux/amd64,linux/arm64
 BOX_HOST_PLATFORM = linux/$(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 # :latest is what an unreleased CLI pulls (box.DefaultImageRef falls back to it),

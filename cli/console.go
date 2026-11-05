@@ -10,20 +10,20 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/nwylynko/slopball-cli/canonical"
-	"github.com/nwylynko/slopball-cli/console"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	"github.com/nwylynko/slopball-cli/reach"
-	"github.com/nwylynko/slopball-cli/session"
-	"github.com/nwylynko/slopball-cli/syncengine"
-	"github.com/nwylynko/slopball-cli/update"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	"github.com/nwylynko/clubhouse-cli/console"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	"github.com/nwylynko/clubhouse-cli/reach"
+	"github.com/nwylynko/clubhouse-cli/session"
+	"github.com/nwylynko/clubhouse-cli/syncengine"
+	"github.com/nwylynko/clubhouse-cli/update"
 	"github.com/spf13/cobra"
 )
 
 // consoleSession is one member's live screen plus the session work behind it.
 //
-// There is deliberately no `slopball console <pin>` verb: the console IS what
-// `slopball` and `slopball join` show instead of the log scroll. One screen per
+// There is deliberately no `club console <pin>` verb: the console IS what
+// `club` and `club join` show instead of the log scroll. One screen per
 // session per machine, nothing new to discover, and the thing on screen is the
 // thing holding the session open — which is also why quitting it leaves the
 // session exactly as Ctrl-C does.
@@ -139,7 +139,7 @@ func (a *announcer) WorkPath() string {
 // and piped output must be byte-identical to before, so the fallback is a plain
 // call with the caller's own stdout — no interception, no reformatting.
 func runConsole(ctx context.Context, cmd *cobra.Command, cs consoleSession) error {
-	// The one place slopball checks whether it is out of date, because this is
+	// The one place club checks whether it is out of date, because this is
 	// the one place a session starts — all three verbs that enter a session come
 	// through here, and a check per verb would be three chances to forget one.
 	//
@@ -283,7 +283,7 @@ func logsEndpoint(ctx context.Context, client *controlplane.Client, pin string) 
 	if client == nil {
 		return "", nil
 	}
-	// Resolved, not raw: a `slop://` address is not something http.Get can
+	// Resolved, not raw: a `club://` address is not something http.Get can
 	// dial, and the dev tab reading "no dev-server output yet" forever was that
 	// bug wearing a placeholder (plan 40).
 	url, err := client.EndpointURL(ctx, pin, controlplane.EndpointLogs)
@@ -298,7 +298,7 @@ func logsEndpoint(ctx context.Context, client *controlplane.Client, pin string) 
 
 // devEndpoint is the dev server as a URL this machine can open. It goes through
 // the resolver rather than the endpoint map because a URL printed for a human
-// to click is a dial too — `slop://<pin>/dev/` in a browser is the whole bug
+// to click is a dial too — `club://<pin>/dev/` in a browser is the whole bug
 // plan 41 exists to fix, and "printed, not dialled" stopped being an excuse for
 // the dev endpoint specifically.
 func devEndpoint(ctx context.Context, client *controlplane.Client, pin string) (string, error) {

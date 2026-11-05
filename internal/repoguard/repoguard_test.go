@@ -21,13 +21,13 @@ import (
 // modulePath is this module. Anything a test here imports must start with it, be
 // standard library, or be one of the third-party dependencies the binary already
 // links.
-const modulePath = "github.com/nwylynko/slopball-cli"
+const modulePath = "github.com/nwylynko/clubhouse-cli"
 
 // privateModule is the repo on the other side of the line. Named separately from
-// the general rule because it is the specific mistake: `slopball-cli/` shares the
-// `slopball/` prefix, so an import of the private module reads almost identically
+// the general rule because it is the specific mistake: `clubhouse-cli/` shares the
+// `club/` prefix, so an import of the private module reads almost identically
 // to an import of this one.
-const privateModule = "github.com/nwylynko/slopball"
+const privateModule = "github.com/nwylynko/clubhouse"
 
 // TestNoTestInThisModuleImportsAnythingOutsideIt is plan 49's boundary, made
 // mechanical.
@@ -41,7 +41,7 @@ const privateModule = "github.com/nwylynko/slopball"
 // The boundary has to be mechanical or it erodes one convenient import at a time,
 // and the end state of that erosion is specific and bad: a test here that reaches
 // for the private module makes this repo unbuildable for everybody outside, since
-// `github.com/nwylynko/slopball` is private and nobody can resolve it. Public CI
+// `github.com/nwylynko/clubhouse` is private and nobody can resolve it. Public CI
 // would be the thing that discovers it, on a clean runner with no credentials,
 // with the diagnosis "no required module provides package".
 //
@@ -129,9 +129,9 @@ func TestEveryPackageUnderInternalIsRepoToolingAndNotClientCode(t *testing.T) {
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".go") {
 			return err
 		}
-		// cmd/slopball is the binary; the tools beside it are allowed to use
+		// cmd/club is the binary; the tools beside it are allowed to use
 		// the tooling packages, because that is what they are for.
-		if !strings.HasPrefix(path, filepath.Join(root, "cmd", "slopball")+string(filepath.Separator)) {
+		if !strings.HasPrefix(path, filepath.Join(root, "cmd", "club")+string(filepath.Separator)) {
 			return nil
 		}
 		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)

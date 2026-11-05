@@ -15,7 +15,7 @@ var ClientVersion = "0.0.0-dev"
 // rather than a body field because it must ride EVERY route — the floor check
 // runs before any body is decoded, and admission-only checking is exactly the
 // garbled-mid-session failure plan 48 exists to kill.
-const VersionHeader = "X-Slopball-Version"
+const VersionHeader = "X-Club-Version"
 
 // MaxClientVersionLen bounds what the control plane will store from that header.
 // A `git describe` stamp is ~30 characters; this is generous against that and

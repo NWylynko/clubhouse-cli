@@ -28,12 +28,12 @@ type LiveMarker struct {
 	// It is a separate fact from the marker's existence on purpose: the marker
 	// answers "does a process hold this session" (written first, so nothing
 	// ever reports a session that is on disk as absent) and ReadyAt answers
-	// "can I open it yet". Collapsing them is what produced a `slopball open`
+	// "can I open it yet". Collapsing them is what produced a `club open`
 	// that denied a session you were standing inside. See Standup.
 	ReadyAt time.Time `json:"readyAt,omitempty"`
 }
 
-// LiveEntry is one live session discovered under $SLOPBALL_HOME.
+// LiveEntry is one live session discovered under $CLUB_HOME.
 type LiveEntry struct {
 	PIN  string
 	Live LiveMarker
@@ -85,7 +85,7 @@ func ClearLive(pin string) error {
 // dev server itself.
 //
 // A missing marker is not an error — nothing is live here, so there is no
-// address to publish and `slopball site` should say exactly that rather than
+// address to publish and `club site` should say exactly that rather than
 // read a URL out of a file no process stands behind.
 func PublishDevURL(pin, url string) error {
 	path := ForPin(pin).Live()

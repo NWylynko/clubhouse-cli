@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/canonical"
-	"github.com/nwylynko/slopball-cli/controlplane"
-	sbGit "github.com/nwylynko/slopball-cli/git"
-	"github.com/nwylynko/slopball-cli/logx"
+	"github.com/nwylynko/clubhouse-cli/canonical"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
+	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
 var watcherLog = logx.New("watcher")
@@ -175,7 +175,7 @@ func (e *ErrorWatcher) Tick(ctx context.Context) error {
 	if e.Host.Remote != "" {
 		src = e.Host.Remote
 	}
-	tmp, err := os.MkdirTemp("", "slopball-watcher-*")
+	tmp, err := os.MkdirTemp("", "clubhouse-watcher-*")
 	if err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func (e *ErrorWatcher) Tick(ctx context.Context) error {
 		return err
 	}
 
-	writePath := "slopball-fix.log"
+	writePath := "clubhouse-fix.log"
 	writeBody := fmt.Sprintf("auto-fix for log error:\n%s\n", firstErrorLine(chunk))
 	commitMsg := "error-watcher: auto-fix"
 	if e.Fix != nil {
@@ -389,11 +389,11 @@ func utf8Text(b []byte) bool {
 }
 
 // errorSignals are substrings that mark a broken build/runtime in dev-server
-// output. "ERROR:" is slopball's own convention (the runtime reconciler writes
+// output. "ERROR:" is club's own convention (the runtime reconciler writes
 // it on migration/reseed failure, plan 20); the rest catch common framework
 // build breakage — including the compile errors a conflict marker or a bad
 // merge produces — so the watcher actually fires on a broken site, not just on
-// slopball-tagged lines.
+// clubhouse-tagged lines.
 var errorSignals = []string{
 	"ERROR:",
 	"Failed to compile",

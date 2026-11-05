@@ -1,4 +1,4 @@
-// Package syncengine implements slopball sync = pull + push (plans/04, 35).
+// Package syncengine implements club sync = pull + push (plans/04, 35).
 // Agents call this at task boundaries; humans never see git.
 package syncengine
 
@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nwylynko/slopball-cli/controlplane"
-	sbGit "github.com/nwylynko/slopball-cli/git"
+	"github.com/nwylynko/clubhouse-cli/controlplane"
+	sbGit "github.com/nwylynko/clubhouse-cli/git"
 )
 
-const intentTrailer = "Slopball-Intent"
+const intentTrailer = "Clubhouse-Intent"
 
 // Base describes the `main` a client resolved against — which commit, how old
 // it is, and whether the hub could still be reached when the client integrated
@@ -80,7 +80,7 @@ func (b Base) annotate(intent string) string {
 //
 // Under pull-first this runs on a tree that Pull has already reconciled and
 // committed, so the commit half is usually a no-op; it stays for bare
-// `slopball push`, which promises no preceding pull.
+// `club push`, which promises no preceding pull.
 func Push(ctx context.Context, work, branch, remote, intent string, id sbGit.Identity) error {
 	if intent == "" {
 		return fmt.Errorf("push requires an intent note")
@@ -96,7 +96,7 @@ func Push(ctx context.Context, work, branch, remote, intent string, id sbGit.Ide
 	if err := c.Run(ctx, "push", remote, "HEAD:"+branch); err != nil {
 		return fmt.Errorf("could not publish %s to the hub at %s: %w\n"+
 			"your work is committed locally and main is already integrated, so nothing is lost — "+
-			"re-run `slopball sync` once the hub is reachable again", branch, remoteURL(ctx, c, remote), err)
+			"re-run `club sync` once the hub is reachable again", branch, remoteURL(ctx, c, remote), err)
 	}
 	return nil
 }
@@ -107,7 +107,7 @@ func Push(ctx context.Context, work, branch, remote, intent string, id sbGit.Ide
 //
 // intent, when set, is the message the client's local work is committed with —
 // Sync passes the agent's intent so the trailer survives pull-first. Bare
-// `slopball pull` passes "" and gets the generic message.
+// `club pull` passes "" and gets the generic message.
 func Pull(ctx context.Context, work, remote, mirrorDir, intent string, id sbGit.Identity) (Base, error) {
 	c := &sbGit.Cmd{Dir: work, Env: id.EnvVars()}
 	if remote == "" {
@@ -145,7 +145,7 @@ func resolveBase(ctx context.Context, c *sbGit.Cmd, remote, mirrorDir string) (B
 	if mirrorDir == "" {
 		if err := c.Run(ctx, "fetch", remote, "main"); err != nil {
 			return Base{}, fmt.Errorf("cannot reach the hub at %s to fetch main, and this machine keeps no local mirror of main to fall back on: %w\n"+
-				"run `slopball join <pin>` — its daemon holds the session connection and keeps a background-fresh mirror, "+
+				"run `club join <pin>` — its daemon holds the session connection and keeps a background-fresh mirror, "+
 				"which is what lets a client keep working while the hub is away", remoteURL(ctx, c, remote), err)
 		}
 		base := Base{Ref: remote + "/main", HubReachable: true}
@@ -240,7 +240,7 @@ func CloneClient(ctx context.Context, remote, work, branch string, id sbGit.Iden
 
 // commitLocal stages and commits any dirty state on the current branch so a
 // following merge sees a clean tree. No-op when there is nothing to commit.
-// With an intent it records the Slopball-Intent trailer the merger reads.
+// With an intent it records the Clubhouse-Intent trailer the merger reads.
 func commitLocal(ctx context.Context, c *sbGit.Cmd, intent string) error {
 	if err := c.Run(ctx, "add", "-A"); err != nil {
 		return err
@@ -258,9 +258,9 @@ func commitLocal(ctx context.Context, c *sbGit.Cmd, intent string) error {
 	if strings.TrimSpace(status) == "" {
 		return nil
 	}
-	msg := "slopball: local work before pull"
+	msg := "club: local work before pull"
 	if intent != "" {
-		msg = fmt.Sprintf("slopball: %s\n\n%s: %s\n", shortIntent(intent), intentTrailer, flatten(intent))
+		msg = fmt.Sprintf("club: %s\n\n%s: %s\n", shortIntent(intent), intentTrailer, flatten(intent))
 	}
 	return c.Run(ctx, "commit", "-m", msg)
 }
@@ -360,7 +360,7 @@ func flatten(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// ReadIntent extracts the Slopball-Intent trailer from a commit message.
+// ReadIntent extracts the Clubhouse-Intent trailer from a commit message.
 func ReadIntent(msg string) string {
 	for _, line := range strings.Split(msg, "\n") {
 		if strings.HasPrefix(line, intentTrailer+":") {
