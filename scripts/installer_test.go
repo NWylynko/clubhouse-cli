@@ -208,6 +208,77 @@ func TestTheBoxImageWorkflowFiresOnTheSameTag(t *testing.T) {
 	}
 }
 
+// TestInstallShWithAPinJoinsTheSession: `curl -fsSL https://clubhouse.sh/<pin> | sh`
+// is "install, then be in the session", so a PIN ends in `club join <pin>` —
+// with the TERMINAL on stdin, not the curl pipe, or the join comes up as the
+// plain line log instead of the console. `script` gives the run a real pty the
+// way a person's shell would.
+func TestInstallShWithAPinJoinsTheSession(t *testing.T) {
+	requireSh(t)
+	if _, err := exec.LookPath("script"); err != nil {
+		t.Skip("no util-linux script(1) to give the installer a terminal")
+	}
+	env := newInstallEnv(t, "Linux", "x86_64")
+	ran := env.fakeReleaseRecordsItsRuns()
+	root := repoRoot(t)
+	// stdin is a pipe, exactly as under `curl | sh`; the pty is the controlling
+	// terminal behind it.
+	cmd := exec.Command("script", "-qec", "echo | sh "+filepath.Join(root, "scripts", "install.sh")+" abc123", "/dev/null")
+	out, err := env.runCmd(cmd)
+	if err != nil {
+		t.Fatalf("install.sh with a pin failed: %v\n%s", err, out)
+	}
+	runs := readFile(t, ran)
+	if !strings.Contains(runs, "args=join abc123 stdin=tty") {
+		t.Fatalf("the installed club was not run as `join abc123` on the terminal; runs:\n%s\noutput:\n%s", runs, out)
+	}
+}
+
+// TestInstallShWithAPinAndNoTerminalSaysSo: with nobody at a keyboard there is
+// no session to sit in. That is a failure the user is told about by name —
+// with the command to run — never a silent exit 0 that reads as "joined".
+func TestInstallShWithAPinAndNoTerminalSaysSo(t *testing.T) {
+	requireSh(t)
+	env := newInstallEnv(t, "Linux", "x86_64")
+	ran := env.fakeReleaseRecordsItsRuns()
+	cmd := exec.Command("setsid", "-w", "sh", filepath.Join(repoRoot(t), "scripts", "install.sh"), "abc123")
+	out, err := env.runCmd(cmd)
+	if err == nil {
+		t.Fatalf("install.sh with a pin and no terminal exited 0:\n%s", out)
+	}
+	if !strings.Contains(out, "club join abc123") {
+		t.Fatalf("the refusal must name the join command to run:\n%s", out)
+	}
+	if strings.Contains(readFile(t, ran), "join") {
+		t.Fatalf("club join ran with no terminal:\n%s", readFile(t, ran))
+	}
+	if _, err := os.Stat(filepath.Join(env.dir, "bin", "club")); err != nil {
+		t.Fatalf("the binary must still be installed: %v", err)
+	}
+}
+
+// fakeReleaseRecordsItsRuns makes the downloaded asset a script that appends
+// each invocation's args, and whether its stdin is a terminal, to a file.
+func (e *installEnv) fakeReleaseRecordsItsRuns() string {
+	e.t.Helper()
+	ran := filepath.Join(e.dir, "ran")
+	writeFakeCurl(e.t, filepath.Join(e.dir, "stub"), filepath.Join(e.dir, "asked"),
+		"#!/bin/sh\\n# %s\\nif [ -t 0 ]; then in=tty; else in=pipe; fi\\necho \"args=$* stdin=$in\" >> "+ran)
+	if err := os.WriteFile(ran, nil, 0o644); err != nil {
+		e.t.Fatal(err)
+	}
+	return ran
+}
+
+func readFile(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
 // installEnv is one sandboxed run of scripts/install.sh: a PATH carrying ONLY a
 // fake `uname`, a fake `curl` and the shell's own tools — no `gh`, no
 // GITHUB_TOKEN — and an install directory of its own.
@@ -240,10 +311,15 @@ func newInstallEnv(t *testing.T, unameS, unameM string) *installEnv {
 	return &installEnv{t: t, dir: dir}
 }
 
-func (e *installEnv) run() (string, error) {
+func (e *installEnv) run(args ...string) (string, error) {
 	e.t.Helper()
 	root := repoRoot(e.t)
-	cmd := exec.Command("sh", filepath.Join(root, "scripts", "install.sh"))
+	return e.runCmd(exec.Command("sh", append([]string{filepath.Join(root, "scripts", "install.sh")}, args...)...))
+}
+
+// runCmd runs cmd inside the sandbox's environment.
+func (e *installEnv) runCmd(cmd *exec.Cmd) (string, error) {
+	e.t.Helper()
 	env := []string{
 		"PATH=" + filepath.Join(e.dir, "stub") + string(os.PathListSeparator) + os.Getenv("PATH"),
 		"CLUB_INSTALL_DIR=" + filepath.Join(e.dir, "bin"),

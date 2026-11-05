@@ -37,7 +37,7 @@ $ club
       club join ypl8rk
 ```
 
-Everyone else:
+Everyone else — no Clubhouse yet? `curl -fsSL https://clubhouse.sh/ypl8rk | sh` installs it and joins in one line:
 
 ```
 $ club join ypl8rk        # clone + background daemon + agent contract
