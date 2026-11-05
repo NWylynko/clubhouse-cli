@@ -5,8 +5,8 @@
 # was dropped, decided not deferred). This fetches the asset for THIS machine's
 # platform from the latest release and puts it on PATH:
 #
-#     curl -fsSL https://clubhouse.sh/install.sh | sh          # install
-#     curl -fsSL https://clubhouse.sh/install.sh | sh -s abc123 # install, then tell you to join
+#     curl -fsSL https://clubhouse.sh | sh          # install
+#     curl -fsSL https://clubhouse.sh | sh -s abc123 # install, then tell you to join
 #
 # The asset name is contractual — `make release` writes dist/club-<os>-<arch>
 # and the release workflow uploads those files under exactly those names, so the

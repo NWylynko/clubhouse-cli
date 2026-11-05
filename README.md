@@ -74,7 +74,7 @@ You join a *session*, not a machine — the host can migrate live without anyone
 ## Install
 
 ```
-$ curl -fsSL https://clubhouse.sh/install.sh | sh
+$ curl -fsSL https://clubhouse.sh | sh
 ```
 
 One static binary into `~/.local/bin` (set `CLUB_INSTALL_DIR` for somewhere else). macOS and Linux, arm64 and amd64.
