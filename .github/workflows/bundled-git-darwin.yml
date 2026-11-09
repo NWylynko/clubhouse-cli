@@ -1,0 +1,117 @@
+name: bundled-git-darwin
+
+# Build the darwin half of the bundled git. baulk/git-minimal (the linux source,
+# see scripts/fetch-bundled-git.sh) ships no darwin asset, and a fresh Mac has
+# no git at all — /usr/bin/git is a shim that pops the Xcode Command Line Tools
+# installer, which takes ages. So we build git ourselves, here, once per git
+# version, and publish it as a release asset that fetch-bundled-git.sh pins by
+# sha256 exactly like the linux ones.
+#
+# Run by hand (Actions → bundled-git-darwin → Run workflow) when git/version.go
+# moves. It publishes the `bundled-git-v<version>` release as a PRERELEASE that
+# is never "latest": install.sh resolves releases/latest, and a git archive
+# becoming latest would break every install.
+#
+# The tag does not start with `v`, so release-cli.yml and box-image.yml ignore it.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GIT_VERSION: "2.52.0"
+  # kernel.org sha256sums.asc for git-2.52.0.tar.xz
+  GIT_SHA256: "3cd8fee86f69a949cb610fee8cd9264e6873d07fa58411f6060b3d62729ed7c5"
+
+jobs:
+  build:
+    # arm64 runner; the amd64 build is a cross-compile (-arch x86_64 against the
+    # same universal SDK) and is smoke-tested under Rosetta.
+    runs-on: macos-15
+    steps:
+      - name: Fetch and verify git source
+        run: |
+          set -euo pipefail
+          curl -fsSLO "https://www.kernel.org/pub/software/scm/git/git-${GIT_VERSION}.tar.xz"
+          echo "${GIT_SHA256}  git-${GIT_VERSION}.tar.xz" | shasum -a 256 -c -
+          tar xf "git-${GIT_VERSION}.tar.xz"
+
+      - name: Build both arches
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          for arch in arm64 amd64; do
+            cc_arch=$arch; [ "$arch" = amd64 ] && cc_arch=x86_64
+            root="git-darwin-${arch}-v${GIT_VERSION}"
+            stage="$PWD/stage-$arch"
+            make -C "git-${GIT_VERSION}" clean >/dev/null
+            # RUNTIME_PREFIX: resolve libexec/git-core and templates relative to
+            #   the binary, so the tree works wherever club extracts it.
+            # NO_*: nothing that would link a library a fresh Mac lacks. zlib,
+            #   iconv and libcurl are part of macOS itself.
+            # INSTALL_SYMLINKS: club's extractor handles symlinks, not hardlinks.
+            make -C "git-${GIT_VERSION}" -j"$(sysctl -n hw.ncpu)" \
+              prefix=/ DESTDIR="$stage/$root" \
+              RUNTIME_PREFIX=YesPlease \
+              NO_GETTEXT=YesPlease NO_PERL=YesPlease NO_PYTHON=YesPlease \
+              NO_TCLTK=YesPlease NO_EXPAT=YesPlease NO_OPENSSL=YesPlease \
+              NO_INSTALL_HARDLINKS=YesPlease INSTALL_SYMLINKS=YesPlease \
+              SKIP_DASHED_BUILT_INS=YesPlease \
+              CFLAGS="-O2 -arch $cc_arch -mmacosx-version-min=12.0" \
+              LDFLAGS="-arch $cc_arch -mmacosx-version-min=12.0" \
+              install >/dev/null
+            rm -rf "$stage/$root/share/man" "$stage/$root/share/perl5" "$stage/$root/share/gitweb" "$stage/$root/share/git-gui" "$stage/$root/share/gitk"
+            tar -C "$stage" -cJf "out/$root.tar.xz" "$root"
+          done
+          ls -la out
+
+      - name: Links only system libraries, right arch
+        run: |
+          set -euo pipefail
+          for arch in arm64 amd64; do
+            cc_arch=$arch; [ "$arch" = amd64 ] && cc_arch=x86_64
+            dir="stage-$arch/git-darwin-${arch}-v${GIT_VERSION}"
+            for f in "$dir/bin/git" "$dir/libexec/git-core/git-remote-http"; do
+              lipo -archs "$f" | grep -qx "$cc_arch" || { echo "$f is $(lipo -archs "$f"), want $cc_arch" >&2; exit 1; }
+              bad="$(otool -L "$f" | tail -n +2 | awk '{print $1}' | grep -vE '^(/usr/lib/|/System/Library/)' || true)"
+              [ -z "$bad" ] || { echo "$f links outside the OS: $bad" >&2; exit 1; }
+            done
+          done
+
+      - name: Smoke test — extracted anywhere, hermetic env, https clone
+        run: |
+          set -euo pipefail
+          for arch in arm64 amd64; do
+            run=""; [ "$arch" = amd64 ] && run="arch -x86_64"
+            t="$(mktemp -d)"
+            tar -C "$t" -xJf "out/git-darwin-${arch}-v${GIT_VERSION}.tar.xz"
+            g="$t/git-darwin-${arch}-v${GIT_VERSION}/bin/git"
+            # Same env club's git.Env gives it: no user config, PATH=/usr/bin:/bin.
+            e="env -i HOME=$t GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null PATH=/usr/bin:/bin"
+            $e $run "$g" --version | grep -q "git version ${GIT_VERSION}"
+            $e $run "$g" --exec-path | grep -q "^$t/" || { echo "exec-path is not relative to the binary" >&2; exit 1; }
+            $e $run "$g" clone -q https://github.com/octocat/Hello-World "$t/clone"
+            $e $run "$g" -C "$t/clone" log -1 --format=%H
+            echo "ok $arch"
+          done
+
+      - name: Checksums
+        run: cd out && shasum -a 256 *.tar.xz | tee SHA256SUMS
+
+      - name: Publish (prerelease, never latest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="bundled-git-v${GIT_VERSION}"
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$tag already exists — assets are pinned by sha256, refusing to replace them" >&2
+            exit 1
+          fi
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --prerelease --latest=false \
+            --title "bundled git ${GIT_VERSION} (darwin)" \
+            --notes "git ${GIT_VERSION} built from kernel.org source for club's bundled git on macOS. Not a club release." \
+            out/*.tar.xz out/SHA256SUMS
