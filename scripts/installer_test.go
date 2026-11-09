@@ -1,6 +1,7 @@
 package scripts_test
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -257,6 +258,55 @@ func TestInstallShWithAPinAndNoTerminalSaysSo(t *testing.T) {
 	}
 }
 
+// TestInstallShPutsClubOnThePathOfTheUsersShell: a fresh macOS has no
+// ~/.local/bin on PATH, and an installer that ends with "add this line
+// yourself" leaves `club` unrunnable in the very next command. So the installer
+// writes the PATH line into the rc file of the shell the user actually runs —
+// without asking — and only once, however many times it is re-run (club update
+// re-runs it).
+func TestInstallShPutsClubOnThePathOfTheUsersShell(t *testing.T) {
+	requireSh(t)
+	for _, tc := range []struct {
+		name, unameS, shell, rc, want string
+	}{
+		{"zsh", "Darwin", "/bin/zsh", ".zshrc", `export PATH="%s:$PATH"`},
+		{"bash-linux", "Linux", "/bin/bash", ".bashrc", `export PATH="%s:$PATH"`},
+		{"bash-darwin", "Darwin", "/bin/bash", ".bash_profile", `export PATH="%s:$PATH"`},
+		{"fish", "Linux", "/usr/bin/fish", ".config/fish/config.fish", `fish_add_path %s`},
+		{"other", "Linux", "/bin/dash", ".profile", `export PATH="%s:$PATH"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newInstallEnv(t, tc.unameS, "arm64")
+			env.shell = tc.shell
+			for i := 0; i < 2; i++ {
+				if out, err := env.run(); err != nil {
+					t.Fatalf("install.sh failed: %v\n%s", err, out)
+				}
+			}
+			body := readFile(t, filepath.Join(env.dir, tc.rc))
+			line := fmt.Sprintf(tc.want, filepath.Join(env.dir, "bin"))
+			if n := strings.Count(body, line); n != 1 {
+				t.Fatalf("%s holds the PATH line %d times, want once:\n%s", tc.rc, n, body)
+			}
+		})
+	}
+}
+
+// TestInstallShLeavesRcAloneWhenClubIsAlreadyOnPath: nothing to fix, nothing
+// written.
+func TestInstallShLeavesRcAloneWhenClubIsAlreadyOnPath(t *testing.T) {
+	requireSh(t)
+	env := newInstallEnv(t, "Darwin", "arm64")
+	env.shell = "/bin/zsh"
+	env.destOnPath = true
+	if out, err := env.run(); err != nil {
+		t.Fatalf("install.sh failed: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(env.dir, ".zshrc")); !os.IsNotExist(err) {
+		t.Fatalf(".zshrc was touched though the install dir is already on PATH")
+	}
+}
+
 // fakeReleaseRecordsItsRuns makes the downloaded asset a script that appends
 // each invocation's args, and whether its stdin is a terminal, to a file.
 func (e *installEnv) fakeReleaseRecordsItsRuns() string {
@@ -283,8 +333,10 @@ func readFile(t *testing.T, path string) string {
 // fake `uname`, a fake `curl` and the shell's own tools — no `gh`, no
 // GITHUB_TOKEN — and an install directory of its own.
 type installEnv struct {
-	t   *testing.T
-	dir string
+	t          *testing.T
+	dir        string
+	shell      string // $SHELL for the run; empty means /bin/sh
+	destOnPath bool   // put the install dir on PATH already
 }
 
 func newInstallEnv(t *testing.T, unameS, unameM string) *installEnv {
@@ -320,15 +372,24 @@ func (e *installEnv) run(args ...string) (string, error) {
 // runCmd runs cmd inside the sandbox's environment.
 func (e *installEnv) runCmd(cmd *exec.Cmd) (string, error) {
 	e.t.Helper()
+	path := filepath.Join(e.dir, "stub") + string(os.PathListSeparator) + os.Getenv("PATH")
+	if e.destOnPath {
+		path = filepath.Join(e.dir, "bin") + string(os.PathListSeparator) + path
+	}
+	shell := e.shell
+	if shell == "" {
+		shell = "/bin/sh"
+	}
 	env := []string{
-		"PATH=" + filepath.Join(e.dir, "stub") + string(os.PathListSeparator) + os.Getenv("PATH"),
+		"PATH=" + path,
+		"SHELL=" + shell,
 		"CLUB_INSTALL_DIR=" + filepath.Join(e.dir, "bin"),
 		"HOME=" + e.dir,
 	}
 	// No credential reaches the script: a token in the developer's shell must not
 	// be what makes this pass.
 	for _, kv := range os.Environ() {
-		if strings.HasPrefix(kv, "GITHUB_TOKEN=") || strings.HasPrefix(kv, "GH_TOKEN=") || strings.HasPrefix(kv, "PATH=") || strings.HasPrefix(kv, "HOME=") {
+		if strings.HasPrefix(kv, "GITHUB_TOKEN=") || strings.HasPrefix(kv, "GH_TOKEN=") || strings.HasPrefix(kv, "PATH=") || strings.HasPrefix(kv, "HOME=") || strings.HasPrefix(kv, "SHELL=") || strings.HasPrefix(kv, "ZDOTDIR=") {
 			continue
 		}
 		env = append(env, kv)

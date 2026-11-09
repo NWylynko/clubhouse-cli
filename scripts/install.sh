@@ -83,9 +83,27 @@ mv "$tmp/$ASSET" "$DEST/$BIN.tmp.$$"
 mv "$DEST/$BIN.tmp.$$" "$DEST/$BIN"
 
 echo "club: installed $DEST/$BIN ($("$DEST/$BIN" --version 2>/dev/null || echo 'not runnable on this machine'))"
+# Put $DEST on the PATH of the shell the user actually runs, without asking: a
+# fresh macOS has no ~/.local/bin on PATH, and "add this line yourself" leaves
+# `club` unrunnable in the very next command. Idempotent — `club update` re-runs
+# this script — so the line is written only if the rc file lacks it.
 case ":$PATH:" in
 	*":$DEST:"*) ;;
-	*) echo "club: $DEST is not on your PATH — add it: export PATH=\"$DEST:\$PATH\"" ;;
+	*)
+		line="export PATH=\"$DEST:\$PATH\""
+		case "${SHELL##*/}" in
+			zsh) rc="${ZDOTDIR:-$HOME}/.zshrc" ;;
+			bash) if [ "$os" = darwin ]; then rc="$HOME/.bash_profile"; else rc="$HOME/.bashrc"; fi ;;
+			fish) rc="$HOME/.config/fish/config.fish"; line="fish_add_path $DEST" ;;
+			*) rc="$HOME/.profile" ;;
+		esac
+		if ! grep -qsF "$line" "$rc"; then
+			mkdir -p "$(dirname "$rc")"
+			printf '\n# added by the club installer\n%s\n' "$line" >> "$rc"
+			echo "club: added $DEST to PATH in $rc"
+		fi
+		echo "club: open a new terminal (or run: $line) to use club"
+		;;
 esac
 # A PIN means "install, then be in the session". Under `curl | sh` stdin is the
 # pipe the script arrived on, so the join is handed the terminal instead — on a
