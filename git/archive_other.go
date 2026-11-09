@@ -1,8 +1,7 @@
-//go:build !(linux && (amd64 || arm64))
+//go:build !((linux || darwin) && (amd64 || arm64))
 
 package git
 
-// No pinned static git archive for this GOOS/GOARCH yet. Resolve() still works
-// if we add a darwin
-// asset later).
+// No bundled git is built for this GOOS/GOARCH, so Bin() fails loudly here.
+// Released platforms are linux and darwin on amd64/arm64 — all embed one.
 var embeddedArchive []byte

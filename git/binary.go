@@ -3,7 +3,6 @@ package git
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -63,59 +62,31 @@ func resolveBin() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	launcher := filepath.Join(prefix, "cmd", "git")
-	if st, err := os.Stat(launcher); err == nil && !st.IsDir() {
-		return launcher, nil
-	}
-	// Also accept a prefix that only has bin/git (dev / alternate builds).
-	alt := filepath.Join(prefix, "bin", "git")
-	if st, err := os.Stat(alt); err == nil && !st.IsDir() {
-		return alt, nil
+	if bin := findLauncher(prefix); bin != "" {
+		return bin, nil
 	}
 	if len(embeddedArchive) == 0 {
-		// No bundled archive for this platform (e.g. darwin has no static git
-		// asset yet, plan 01). Bundled git is load-bearing for MERGE DETERMINISM,
-		// which happens on the host — a client that only clones/fetches/pushes
-		// can safely borrow a system git rather than hard-fail. Prefer that over
-		// a dead binary, but warn loudly so it's never silent.
-		return SystemGitFallback()
+		return "", fmt.Errorf("no bundled git %s is built for %s/%s", Version, runtime.GOOS, runtime.GOARCH)
 	}
 	if err := ExtractArchive(embeddedArchive, prefix); err != nil {
 		return "", fmt.Errorf("extract bundled git: %w", err)
 	}
-	if _, err := os.Stat(launcher); err != nil {
-		return "", fmt.Errorf("bundled git launcher missing after extract: %s", launcher)
+	if bin := findLauncher(prefix); bin != "" {
+		return bin, nil
 	}
-	return launcher, nil
+	return "", fmt.Errorf("bundled git launcher missing after extract into %s", prefix)
 }
 
-// SystemGitFallback finds a git on PATH for platforms with no bundled asset.
-//
-// Exported because it is the entirety of the narrow client-only escape hatch
-// (docs/packages.md → internal/git) and Bin() cannot reach it anywhere the
-// suite runs: every platform with an embedded archive resolves a bundled git
-// long before this line, so the only machine that would exercise it through
-// the public door is the darwin laptop that never runs the suite. Calling it
-// directly is what stops "borrow a system git rather than hard-fail" from
-// being untested code on the day it matters.
-func SystemGitFallback() (string, error) {
-	if sys, lerr := exec.LookPath("git"); lerr == nil {
-		warnSystemGitOnce(sys)
-		return sys, nil
+// findLauncher returns the git entry point inside an extracted prefix: cmd/git
+// for the linux git-minimal archives, bin/git for the darwin ones we build
+// (.github/workflows/bundled-git-darwin.yml). Empty when neither exists.
+func findLauncher(prefix string) string {
+	for _, p := range []string{filepath.Join(prefix, "cmd", "git"), filepath.Join(prefix, "bin", "git")} {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return p
+		}
 	}
-	return "", fmt.Errorf("bundled git %s not available for %s/%s and no system git on PATH; run `make fetch-git` or install git", Version, runtime.GOOS, runtime.GOARCH)
-}
-
-var warnOnce sync.Once
-
-// warnSystemGitOnce notes (once) that we fell back to a non-bundled git. Merge
-// determinism only matters on the host, which ships bundled git; this path is
-// for clients on platforms without a bundled asset.
-func warnSystemGitOnce(path string) {
-	warnOnce.Do(func() {
-		fmt.Fprintf(os.Stderr, "club: no bundled git for %s/%s — using system git at %s (fine for a client; the host still uses bundled git)\n",
-			runtime.GOOS, runtime.GOARCH, path)
-	})
+	return ""
 }
 
 // ResetResolveForTest clears the cached binary path so tests can point at a

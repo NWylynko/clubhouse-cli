@@ -61,7 +61,7 @@ build: fetch-git
 fetch-git:
 	@bash scripts/fetch-bundled-git.sh
 
-# Every linux arch, for the targets that CROSS-compile. `//go:embed` fails the
+# Every released platform, for the targets that CROSS-compile. `//go:embed` fails the
 # build outright when the archive for the target arch is absent ("pattern
 # bundled/linux-arm64.tar.xz: no matching files found"), so the host-only fetch
 # above is not enough for the release matrix.

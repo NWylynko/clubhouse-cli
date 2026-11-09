@@ -139,6 +139,13 @@ the build fails with `pattern bundled/linux-amd64.tar.xz: no matching files
 found`. The archives are gitignored and checksum-pinned in
 `scripts/fetch-bundled-git.sh` — bump `git/version.go` in lockstep.
 
+Linux git comes from baulk/git-minimal; **darwin git is ours** — baulk ships
+none, and a fresh Mac has no git (`/usr/bin/git` is the Xcode CLI tools
+installer). To bump the git version: change `GIT_VERSION`/`GIT_SHA256` in
+`.github/workflows/bundled-git-darwin.yml`, run it (Actions → Run workflow; it
+publishes a never-latest `bundled-git-v<ver>` prerelease), then pin its
+SHA256SUMS in `fetch-bundled-git.sh`. There is no system-git fallback.
+
 `CONTROL_URL` stamps the default control plane at link time. It is empty here on
 purpose: a clean checkout has no deployment to name, so a local build keeps its
 loopback default. CI passes it from a repository variable. **Never name a

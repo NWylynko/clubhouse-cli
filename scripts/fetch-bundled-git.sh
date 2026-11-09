@@ -7,24 +7,30 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/git/bundled"
 VERSION="2.52.0"
-BASE="https://github.com/baulk/git-minimal/releases/download/v${VERSION}"
+LINUX="https://github.com/baulk/git-minimal/releases/download/v${VERSION}"
+# baulk/git-minimal has no darwin build, so we build our own:
+# .github/workflows/bundled-git-darwin.yml publishes this prerelease.
+DARWIN="https://github.com/nwylynko/clubhouse-cli/releases/download/bundled-git-v${VERSION}"
 
-# goos-goarch → asset name + sha256
+# goos-goarch → asset URL + sha256
 declare -A ASSETS=(
-  ["linux-amd64"]="git-minimal-musl-v${VERSION}-linux-amd64.tar.xz"
-  ["linux-arm64"]="git-minimal-musl-v${VERSION}-linux-arm64.tar.xz"
+  ["linux-amd64"]="${LINUX}/git-minimal-musl-v${VERSION}-linux-amd64.tar.xz"
+  ["linux-arm64"]="${LINUX}/git-minimal-musl-v${VERSION}-linux-arm64.tar.xz"
+  ["darwin-amd64"]="${DARWIN}/git-darwin-amd64-v${VERSION}.tar.xz"
+  ["darwin-arm64"]="${DARWIN}/git-darwin-arm64-v${VERSION}.tar.xz"
 )
 declare -A SUMS=(
   ["linux-amd64"]="d2edd4a60cc80ea05cedaeafef6a8f680e77b4fbcfb4ec03035f0527520576e0"
   ["linux-arm64"]="4258e28fb48486b99ad57a64a659d9e08633ac758615cd17dd6ecb0083f051bf"
+  ["darwin-amd64"]="c9855aa5009c55b05e9e90fd83a91ed06b98be76a57eeaae397a42d79018f68d"
+  ["darwin-arm64"]="cf30b06b12eff0659c235fb83155251771d397156ef90cbc67d990134df1390b"
 )
 
 mkdir -p "$OUT"
 
 fetch_one() {
-  local key="$1" asset url dest sum
-  asset="${ASSETS[$key]}"
-  url="${BASE}/${asset}"
+  local key="$1" url dest sum
+  url="${ASSETS[$key]}"
   dest="${OUT}/${key}.tar.xz"
   sum="${SUMS[$key]}"
 
@@ -54,7 +60,6 @@ if [[ "$TARGET" == "all" ]]; then
 elif [[ -n "${ASSETS[$TARGET]+x}" ]]; then
   fetch_one "$TARGET"
 else
-  echo "no bundled git asset for $TARGET yet (darwin needs a source — see plans/01)" >&2
-  echo "continuing without archive; runtime will fall back to a system git on PATH" >&2
-  exit 0
+  echo "error: no bundled git asset for $TARGET" >&2
+  exit 1
 fi
