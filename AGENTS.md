@@ -104,6 +104,17 @@ release rather than two things that can drift. **Publishing is gated on a GitHub
 environment approval** — a tag build produces the binaries and the image and then
 waits for a human. Fix-forward is for code, not for artifacts strangers install.
 
+## Comments
+
+Rare. Write one only to connect things the types and imports can't: a value or
+protocol duplicated in another language or repo (the services repo's
+`cloudflare/` workers and floor parser, `scripts/fetch-bundled-git.sh`), or text
+another tool reads. Don't explain what code does, why a decision was made,
+or which plan it came from. The reasoning goes in the commit message. Keep
+tool-read text: `//go:` directives, the `devport:onpurpose` marker the private
+repo's dev-port guard scans this module for, and `raw endpoint ok:` notes
+justifying a raw endpoint read (the private repo's guard enforces them there).
+
 ## Layout
 
 Feature verticals, flat, no `internal/` for anything a client links — the private
