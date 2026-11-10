@@ -34,11 +34,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// sessionCtx resolves the active session and loads its metadata. The PIN is
-// resolved in order of specificity: an explicit --pin, then $CLUB_PIN, then
-// the current working directory — because every work tree lives under
-// <home>/sessions/<pin>/, just running a verb from inside the folder you're
-// editing is enough (agents never have to thread --pin through every call).
 func sessionCtx(cmd *cobra.Command) (session.Session, session.Paths, error) {
 	pin := resolvePin(cmd)
 	if pin == "" {
@@ -51,8 +46,6 @@ func sessionCtx(cmd *cobra.Command) (session.Session, session.Paths, error) {
 	return s, session.ForPin(pin), nil
 }
 
-// resolvePin picks the session PIN from (most specific first) the --pin flag,
-// $CLUB_PIN, or the current working directory.
 func resolvePin(cmd *cobra.Command) string {
 	if cmd != nil {
 		if pin, _ := cmd.Flags().GetString("pin"); pin != "" {
@@ -65,8 +58,6 @@ func resolvePin(cmd *cobra.Command) string {
 	return pinFromCwd()
 }
 
-// pinFromCwd returns the PIN of the session whose tree contains the current
-// directory, or "" if we're not inside one.
 func pinFromCwd() string {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -75,9 +66,6 @@ func pinFromCwd() string {
 	return pinUnderSessions(cwd, filepath.Join(session.Home(), "sessions"))
 }
 
-// pinUnderSessions extracts the PIN when dir sits inside <sessionsRoot>/<pin>/…
-// (the layout session.ForPin lays down). Symlinks on either side are resolved so
-// a session under a symlinked $CLUB_HOME (or /tmp on macOS) still matches.
 func pinUnderSessions(dir, sessionsRoot string) string {
 	dir = resolvePath(dir)
 	sessionsRoot = resolvePath(sessionsRoot)
@@ -105,12 +93,6 @@ func resolvePath(p string) string {
 	return abs
 }
 
-// workDir resolves this machine's working tree for a session — where the
-// human/agent edits and what sync/push/pull operate on. A client's dev tree
-// (sessions/<pin>/work) is preferred whenever it exists: a hosting laptop now
-// gets one too (§4.4: host = client + box-operator), so this is where edits go
-// even on a host. canonical/work is only a fallback for an older host that has
-// no client tree — and it must not be edited directly (the loop hard-resets it).
 func workDir(p session.Paths) string {
 	if _, err := os.Stat(filepath.Join(p.Work, ".git")); err == nil {
 		return p.Work
@@ -124,9 +106,6 @@ func workDir(p session.Paths) string {
 	return p.Work
 }
 
-// mirrorDir returns the client's local main mirror if it exists, else "" so the
-// caller falls back to fetching from origin. A host has no mirror/ — its
-// canonical work tree's origin already is the session bare repo.
 func mirrorDir(p session.Paths) string {
 	if st, err := os.Stat(p.Mirror); err == nil && st.IsDir() {
 		return p.Mirror
@@ -143,9 +122,6 @@ func addIntentFlag(cmd *cobra.Command) {
 }
 
 func runHost(cmd *cobra.Command, _ []string) error {
-	// The command's own context, not a fresh Background: a caller that can stop
-	// this verb (a test, an embedding process) has no other way to, now that the
-	// whole standup runs behind the console rather than in front of it.
 	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	pin, _ := cmd.Flags().GetString("pin")
@@ -159,23 +135,14 @@ func runHost(cmd *cobra.Command, _ []string) error {
 	installCmd, _ := cmd.Flags().GetString("install")
 	takeover, _ := cmd.Flags().GetBool("takeover")
 
-	// Seeds are checked before a single question is asked, let alone a container
-	// created: `--seed <bad path>` used to surface minutes later as a dev server
-	// with no package.json (plan 33).
 	if err := checkSeedFlags(seed, seedURL); err != nil {
 		return err
 	}
 
-	// The first run asks its questions BEFORE anything starts, so the session
-	// comes up against one fully-resolved plan (plan 29). Non-interactive runs
-	// resolve the same plan from flags alone and ask nothing, which is what
-	// keeps every e2e/emulator/box-booted container unaffected.
 	plan, wizard, err := resolveFirstRun(cmd, seedOrURL(seed, seedURL))
 	if err != nil {
 		return err
 	}
-	// A box target is dialed before a session directory exists: a typo found
-	// after cutover is the expensive one.
 	if plan.BoxTarget != "" {
 		if err := preflightBox(ctx, cmd, plan.BoxTarget, cmd.OutOrStdout()); err != nil {
 			return err
@@ -183,33 +150,17 @@ func runHost(cmd *cobra.Command, _ []string) error {
 	}
 	warnMirrorCredential(cmd, plan)
 
-	// Remote-first (plan 32): a named box IS the session's first host. Branch
-	// before anything local starts, so there is no local host to move, no
-	// takeover, no cutover and only ever one canonical.
 	if plan.Box || plan.BoxTarget != "" {
 		return standUpOnBox(ctx, cmd, plan, once)
 	}
 
 	startInstall, startDev := strings.Fields(installCmd), strings.Fields(devCmd)
 	if wizard {
-		// Nothing to install or serve yet — the project does not exist until the
-		// setup role has run. startLocalDev picks these up afterwards, from the
-		// commands recordRunCommands resolved against the scaffold.
 		startInstall, startDev = nil, nil
 	}
-	// A fresh create leaves the PIN empty: the control plane mints it, and the
-	// console draws with "minting session…" until Announce fills the join line
-	// (abuse-surface ticket 11). `_host` is still handed one on its argv.
 	ann, lv := newAnnouncer(), &leaver{}
-	// Leaving and cleaning up are one act, and it is the host's own Close. The
-	// standup that creates it runs behind the console, so it is registered from
-	// in there rather than captured here.
 	defer func() { _ = lv.Leave(context.Background()) }()
 
-	// The host loop moves onto its own goroutine so the console can hold the
-	// terminal (plan 36 §3). Without a terminal to draw on, runConsole calls
-	// this straight through with the caller's own stdout, so `--once`, CI, the
-	// emulator and piped output stay byte-identical to what they print today.
 	work := func(ctx context.Context, out io.Writer) error {
 		r, err := hoststart.Start(ctx, hoststart.Options{
 			PIN: pin, SeedDir: seed, SeedURL: seedURL,
@@ -229,14 +180,10 @@ func runHost(cmd *cobra.Command, _ []string) error {
 		}
 		pin = r.PIN
 		lv.holds(func() { _ = r.Close(context.Background()) })
-		// PIN (on create), branch and work path exist only now.
 		ann.Announce(console.MemberMsg{PIN: r.PIN, MemberID: r.MemberID, Branch: r.Branch, WorkPath: r.WorkDir})
 		fmt.Fprint(out, r.PrintJoin())
 
 		if wizard {
-			// Order matters: scaffold first, so DetectInstall/DetectDev have a real
-			// project to read rather than an empty tree. A box target never reaches
-			// here — plan 32 branched to standUpOnBox before any of this started.
 			scaffoldNow(ctx, cmd, out, r.Host, r.PIN, plan)
 			plan = recordRunCommands(ctx, cmd, out, r.Host, r.PIN, plan)
 			startLocalDev(ctx, cmd, r, plan)
@@ -270,16 +217,11 @@ func runHost(cmd *cobra.Command, _ []string) error {
 				fmt.Fprintln(out, "host stopping")
 				return nil
 			case <-r.Demoted():
-				// Another machine took the PIN (a `box add`, or this run's own
-				// handoff). Ticking a fleet against a canonical nobody reads is a
-				// zombie host — stop, and let the next start rejoin as a client.
 				log.Infof("this machine is no longer the host for %s — stopping the fleet", r.PIN)
 				fmt.Fprintln(out, "no longer the host — hosting moved to another machine; run `club join "+r.PIN+"` to follow it")
 				return nil
 			case <-t.C:
 				tick++
-				// Renew the leases this machine serves, and pick up anything that has
-				// fallen free (plan 30). An unreachable control plane moves nothing.
 				if r.Placement != nil {
 					if err := r.Placement.Tick(ctx); err != nil {
 						log.Debugf("tick %d: placement: %v", tick, err)
@@ -291,9 +233,6 @@ func runHost(cmd *cobra.Command, _ []string) error {
 				}
 				old = strings.TrimSpace(old)
 
-				// serve-only (cloud box): don't run the merger fleet — the elected
-				// conductor merges off-box under its harness login. Still track main
-				// (which the elector pushes) so the box's dev server stays current.
 				if !serveOnly {
 					if ahead, err := r.Host.BranchesAheadOfMain(ctx); err != nil {
 						log.Warnf("tick %d: list branches ahead: %v", tick, err)
@@ -322,11 +261,6 @@ func runHost(cmd *cobra.Command, _ []string) error {
 					log.Infof("main advanced %s → %s — reinstalling deps / reconciling dev server", short(old), short(newH))
 				}
 
-				// A host that booted against an empty canonical has no dev command
-				// yet — the project, and the run file naming how to start it, arrive
-				// later. Look again now that main has moved (plan 32); once a dev
-				// server is supervised here this is a no-op and PostMergeInstall
-				// takes over.
 				if err := r.AdoptDeclaredRun(ctx); err != nil {
 					log.Warnf("tick %d: adopt declared run commands: %v", tick, err)
 				}
@@ -340,24 +274,15 @@ func runHost(cmd *cobra.Command, _ []string) error {
 						log.Warnf("tick %d: runtime reconcile: %v", tick, err)
 					}
 				}
-				// Last, and every tick: the reconcile above restarts the dev server
-				// for a migration, an env change or a reseed, but never because it
-				// died. Liveness is not tied to anyone merging (plan 34).
 				r.KeepDevAlive(ctx, advanced)
 			}
 		}
 	}
-	// A standup failure comes back from the console the same way it used to come
-	// back from the call in front of it — console.Run takes the screen down and
-	// hands the error on, so this branch reads identically on both paths.
 	finish := func(err error) error {
 		var joinAs *hoststart.ErrJoinAsClient
 		if !errors.As(err, &joinAs) {
 			return err
 		}
-		// The client path takes a pin and a name and nothing else — no dev
-		// server, no conductor, no canonical. Say so, because a --dev that
-		// silently evaporates here is plan 25's original bug.
 		fmt.Fprintln(cmd.ErrOrStderr(), joinAs.Message)
 		if devCmd != "" {
 			fmt.Fprintf(cmd.ErrOrStderr(),
@@ -375,14 +300,11 @@ func runHost(cmd *cobra.Command, _ []string) error {
 	}
 
 	if once {
-		// --once is scripting: no console, no interception, today's output.
 		return finish(work(ctx, cmd.OutOrStdout()))
 	}
 
 	return finish(runConsole(ctx, cmd, consoleSession{
 		PIN: pin, Me: clientName(),
-		// A mesh host runs the fleet here, so this is where the agent tabs
-		// have a live stream to show.
 		Elector:  !serveOnly,
 		Leave:    lv.Leave,
 		Work:     work,
@@ -390,7 +312,6 @@ func runHost(cmd *cobra.Command, _ []string) error {
 	}))
 }
 
-// short trims a git SHA to its 7-char prefix for log lines.
 func short(sha string) string {
 	if len(sha) > 7 {
 		return sha[:7]
@@ -429,12 +350,6 @@ func runJoinAs(cmd *cobra.Command, pin, name string) error {
 	fmt.Fprintf(cmd.OutOrStdout(), "joined %s as %s\nwork: %s\n", pin, j.Session.Branch, j.Paths.Work)
 	fmt.Fprintln(cmd.OutOrStdout(), "mirror daemon running — Ctrl-C to stop")
 
-	// The joiner's console differs from the creator's only in what it does not
-	// have: no box question, no election. Same dashboard, same tabs, same code
-	// path, same leaver — the signal wait below simply becomes the console's
-	// event loop. Join clones before the screen rather than behind it, and
-	// deliberately: it is one clone, and the branch it puts you on is the first
-	// thing the dashboard says.
 	lv := &leaver{}
 	lv.holds(func() { log.Infof("stopping"); j.Close() })
 	defer func() { _ = lv.Leave(ctx) }()
@@ -448,9 +363,6 @@ func runJoinAs(cmd *cobra.Command, pin, name string) error {
 	})
 }
 
-// waitForSignal blocks until Ctrl-C or the context ends. It is what holds a
-// session open when there is no console to hold it — the fallback path's whole
-// body, unchanged from what `join` has always done.
 func waitForSignal(ctx context.Context) {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
@@ -461,12 +373,6 @@ func waitForSignal(ctx context.Context) {
 	}
 }
 
-// checkOrphanedCanonical refuses to join a session whose canonical lives on
-// *this* machine while the control plane serves no host for it — the state a
-// mesh host leaves behind on Ctrl-C now that no human verb re-hosts a PIN
-// (plan 27). Joining would clone from nobody and leave a mirror daemon polling
-// a dead endpoint, so say what actually happened instead. Claiming the free
-// lease automatically is plan 30's job.
 func checkOrphanedCanonical(ctx context.Context, client *controlplane.Client, pin string) error {
 	p := session.ForPin(pin)
 	if _, err := os.Stat(filepath.Join(p.Canonical, canonical.BareDir)); err != nil {
@@ -476,12 +382,9 @@ func checkOrphanedCanonical(ctx context.Context, client *controlplane.Client, pi
 	if err == nil {
 		// raw endpoint ok: presence check only — is anybody serving canonical.
 		if ep, ok := sess.Endpoints[controlplane.EndpointGit]; ok && ep.URL != "" {
-			return nil // someone is serving it — an ordinary join
+			return nil
 		}
 	}
-	// A refused build learns NOTHING about who is serving canonical, so the
-	// confident paragraph below would be a wrong answer with instructions in it.
-	// One sentence instead (plan 48).
 	if errors.Is(err, controlplane.ErrUpgradeRequired) {
 		return controlplane.ErrUpgradeRequired
 	}
@@ -509,9 +412,6 @@ func runSync(cmd *cobra.Command, _ []string) error {
 	followHost(ctx, s, p, id)
 	base, err := syncengine.Sync(ctx, workDir(p), branch, "origin", mirrorDir(p), intent, id)
 	if report := base.Report(); report != "" {
-		// Never blocking, always said out loud: a resolution made against an old
-		// main degrades toward hub-side resolution, and both the agent and the
-		// human should know that is what happened (plan 35 decision 4).
 		fmt.Fprintln(cmd.OutOrStdout(), "note: "+report)
 	}
 	if err != nil {
@@ -561,8 +461,6 @@ func runPull(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// followHost re-resolves the PIN and retargets origin when the canonical moved
-// (plan 22). Soft: resolve failures never block sync against the current origin.
 func followHost(ctx context.Context, s session.Session, p session.Paths, id sbGit.Identity) {
 	client := controlClient(nil)
 	_, _ = syncengine.FollowHost(ctx, syncengine.FollowOpts{
@@ -574,13 +472,9 @@ func followHost(ctx context.Context, s session.Session, p session.Paths, id sbGi
 	})
 }
 
-// controlClients memoizes one Client per base URL so a console and its own
-// daemon share a cache and a single Watch stream (plan 43). Building a new
-// *Client per call used to mean two streams for one session.
-var controlClients sync.Map // string → *controlplane.Client
+var controlClients sync.Map
 
 func controlClient(_ *cobra.Command) *controlplane.Client {
-	// flag → $CLUB_CONTROL → stamped/loopback DefaultURL (BaseURL).
 	url := controlplane.BaseURL(controlFlag)
 	if v, ok := controlClients.Load(url); ok {
 		return v.(*controlplane.Client)
@@ -590,8 +484,6 @@ func controlClient(_ *cobra.Command) *controlplane.Client {
 	return actual.(*controlplane.Client)
 }
 
-// runRepoint retargets this client's origin at a relocated canonical. With no
-// --to, resolves the PIN through the control plane; --to forces a URL.
 func runRepoint(cmd *cobra.Command, _ []string) error {
 	s, p, err := sessionCtx(cmd)
 	if err != nil {
@@ -633,26 +525,14 @@ func runRun(cmd *cobra.Command, args []string) error {
 	return devserver.Run(context.Background(), workDir(p), args, cmd.OutOrStdout())
 }
 
-// runConductor opens the session's canonical and runs the merger role — the
-// integrate loop (§6.1). Uses the selected harness CLI when installed,
-// mechanical incoming-bias otherwise. This is the standalone conductor a
-// laptop host (or elected conductor-on-elector) runs against canonical.
 func runConductor(cmd *cobra.Command, _ []string) error {
 	s, p, err := sessionCtx(cmd)
 	if err != nil {
 		return err
 	}
-	// The command's own context: as a verb that is Background, but the wizard
-	// calls this in-process (conductorLoop) and its cancellation is the only way
-	// a console quit reaches the fleet.
 	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// --remote drives a canonical that lives on another machine (a cloud box):
-	// the conductor runs here, under this laptop's harness login, and pushes
-	// merges back to the box (plan 21 conductor-on-elector). If omitted: prefer
-	// a local on-disk canonical (on-host conductor); only fall through to the
-	// control-plane git URL when there is no local canonical (elector laptop).
 	remote, _ := cmd.Flags().GetString("remote")
 	localCanonical := false
 	if remote == "" {
@@ -665,14 +545,7 @@ func runConductor(cmd *cobra.Command, _ []string) error {
 
 	var host *canonical.Host
 	if remote != "" && !localCanonical {
-		// `published` is the address the session carries and the only one a human
-		// has ever seen; `remote` becomes the loopback forwarder git dials. Every
-		// word printed from here on names the first (firstrun does the same): a
-		// forwarder port belongs to this process and stays true for as long as it
-		// runs, which is not long enough to put in front of anybody.
 		published := remote
-		// --remote may be the printed session address (club://…); git cannot dial
-		// that. Dialable is the one place that knows — same as firstrun / join.
 		client := controlClient(cmd)
 		if sess, serr := client.Session(ctx, s.PIN); serr != nil {
 			return fmt.Errorf("resolve session %s for remote %s: %w", s.PIN, published, serr)
@@ -694,11 +567,6 @@ func runConductor(cmd *cobra.Command, _ []string) error {
 	}
 	defer host.Close(context.Background())
 
-	// Adopt the session's own fleet composition when it published one (plan 29):
-	// a machine electing itself conductor mid-session reproduces the agents the
-	// session chose rather than imposing its own default. Falls back to this
-	// machine's harness for any role the session never named. The join daemon
-	// builds its fleet through the same call, so the two cannot drift.
 	log := logx.New("conductor")
 	built := conductor.BuildSessionFleet(ctx, conductor.SessionFleetSpec{
 		Host: host, ID: sbGit.SessionIdentity("conductor", s.PIN),
@@ -707,9 +575,6 @@ func runConductor(cmd *cobra.Command, _ []string) error {
 	})
 	fleet := built.Fleet
 	if built.LogsURL != "" {
-		// Probe, don't announce (plan 40). The old line named a URL it never
-		// dialled, so a watcher that was blind for a whole session looked
-		// perfectly healthy in the log.
 		if err := (&conductor.RemoteLogSource{URL: built.LogsURL}).Probe(); err == nil {
 			log.Infof("error-watcher watching dev-server logs at %s (reachable)", built.LogsURL)
 		} else {
@@ -724,18 +589,10 @@ func runConductor(cmd *cobra.Command, _ []string) error {
 		log.Infof("conducting session %s (no harness — mechanical incoming-bias resolution)", s.PIN)
 	}
 
-	// The fleet's own tick stays 2s (local git, the merge hot path); the
-	// network fetch against a remote canonical reacts to `sync.pushed` with a
-	// floor underneath it (plan 43). A local host is never gated — its Refresh
-	// is already a no-op.
 	gate := conductor.NewRefreshGate(controlClient(cmd), s.PIN, host.RemoteURL() != "")
-	// The two doors differ in whether they wait for the roles they start, and
-	// the difference is the whole point: `--once` has no next tick to catch a
-	// role it skipped, so it runs them to completion; the loop must come round
-	// every 2s even while a minutes-long setup scaffold is in flight.
 	refresh := func() error {
 		if gate.Due(time.Now()) {
-			return host.Refresh(ctx) // no-op for a local host
+			return host.Refresh(ctx)
 		}
 		return nil
 	}
@@ -756,20 +613,12 @@ func runConductor(cmd *cobra.Command, _ []string) error {
 		}
 		return fleet.TickAfter(ctx)
 	}
-	// A standalone conductor is long-running, so it holds the stream too — that
-	// is what makes a merge follow a push rather than a floor. `--once` above
-	// has already returned, so no one-shot verb picks this up.
 	controlClient(cmd).Watch(ctx, s.PIN)
-	// Role state samples beside the loop, not inside a tick: the tick that
-	// blocks for a 40-second AI resolve is the one worth seeing (plan 36 §2).
 	go built.Publisher.Run(ctx)
 	fmt.Fprintln(cmd.OutOrStdout(), "conductor running — Ctrl-C to stop")
 	return tickUntilDone(ctx, log, tick)
 }
 
-// tickUntilDone runs one fleet tick every 2s until the context is cancelled.
-// Shared by `club conductor` and the first-run handoff so both loops behave
-// identically — including tolerating a failing tick rather than exiting.
 func tickUntilDone(ctx context.Context, log *logx.Logger, tick func() error) error {
 	t := time.NewTicker(2 * time.Second)
 	defer t.Stop()
@@ -786,14 +635,8 @@ func tickUntilDone(ctx context.Context, log *logx.Logger, tick func() error) err
 	}
 }
 
-// conductorLoop drives the fleet against a remote canonical under this
-// machine's harness login — the terminal state of the first-run box branch, and
-// the same thing `club conductor --remote` does.
 func conductorLoop(ctx context.Context, cmd *cobra.Command, pin, remote string) error {
 	conductorCmd := &cobra.Command{}
-	// The caller's context, or this is a fleet nothing can stop: the wizard runs
-	// the conductor as the tail of its work function, and a console quit ends
-	// that context without sending anyone a signal.
 	conductorCmd.SetContext(ctx)
 	conductorCmd.Flags().String("pin", pin, "")
 	conductorCmd.Flags().String("remote", remote, "")
@@ -803,10 +646,6 @@ func conductorLoop(ctx context.Context, cmd *cobra.Command, pin, remote string) 
 	return runConductor(conductorCmd, nil)
 }
 
-// checkSeedFlags settles what a session is seeded from before anything is
-// started. Two seeds is a user error rather than something to merge, and a
-// directory that cannot become a commit should say so while the only cost of
-// being wrong is retyping the command.
 func checkSeedFlags(seedDir, seedURL string) error {
 	if seedDir != "" && seedURL != "" {
 		return fmt.Errorf("--seed %s and --seed-url %s both name where the session starts from — pass one, not both",
@@ -818,26 +657,12 @@ func checkSeedFlags(seedDir, seedURL string) error {
 	return canonical.PreflightSeedDir(seedDir)
 }
 
-// ResolveSeedURL picks the canonical a new box clones from when --seed-url was
-// not passed. The flag should never be needed: the CLI is already talking to the
-// control plane (it resolves this same URL for the cutover), so the session's
-// live canonical is known. Two cases legitimately yield "" — a blank box:
-//   - the session has no canonical yet (genuinely new session), and
-//   - the only canonical *is* the container we are about to replace, which
-//     Provision `docker rm -f`s before the new one boots, so cloning from it
-//     would dial an endpoint that just died. Caller warns; --volume is the way
-//     to keep a box's canonical across a re-provision.
-//
-// Exported because those two empty answers are the decision rule — seeding from
-// the container about to be `docker rm -f`'d is the bug that orphaned a session
-// — and a full provision is far too blunt an instrument to pin them with.
 func ResolveSeedURL(ctx context.Context, pin, target, container string) string {
 	s, err := controlClient(nil).Session(ctx, pin)
 	if err != nil {
 		return ""
 	}
 	// raw endpoint ok: the seed URL is handed back to the box, which resolves
-	// it on its own machine — resolving it here would forward a loopback.
 	ep, ok := s.Endpoints[controlplane.EndpointGit]
 	if !ok || ep.URL == "" {
 		return ""
@@ -848,21 +673,12 @@ func ResolveSeedURL(ctx context.Context, pin, target, container string) string {
 	return ep.URL
 }
 
-// resolveCanonicalRemote asks the control plane where the session's git lives,
-// AS PUBLISHED — on the session network that is `club://<pin>/git/canonical.git`.
-// The caller runs it through Dialable to get something git can clone, and keeps
-// this form for everything it prints: a loopback forwarder port is an address
-// that belongs to the running process, so it is no use in a message and worse
-// than none in an error (session 2lmymb printed two of them and named neither
-// the session's git nor a thing to do about it).
 func resolveCanonicalRemote(ctx context.Context, pin string) string {
 	s, err := controlClient(nil).Session(ctx, pin)
 	if err != nil {
 		return ""
 	}
-	// raw endpoint ok: this IS the published address, and the caller dials it
-	// through Dialable — resolving here would throw away the only form a human
-	// recognises.
+	// raw endpoint ok: the seed URL is handed back to the box, which resolves
 	ep, ok := s.Endpoints[controlplane.EndpointGit]
 	if !ok {
 		return ""
@@ -870,12 +686,6 @@ func resolveCanonicalRemote(ctx context.Context, pin string) string {
 	return ep.URL
 }
 
-// runDaemon is the long-running join-side worker (§5.8): keep the local main
-// mirror fresh so `sync`'s pull-half is a fast local merge and every client
-// stays a near-latest replica (the migration safety net). Origin is a Dialable
-// URL — on the session network a loopback forwarder that dies with the join
-// process — so every refresh re-resolves before fetch, the same way the join
-// daemon's tick does via FollowHost.
 func runDaemon(cmd *cobra.Command, _ []string) error {
 	s, p, err := sessionCtx(cmd)
 	if err != nil {
@@ -911,10 +721,6 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 	}
 }
 
-// runMonitor gives a live, read-only view of one session — role, where main
-// sits, branches still ahead of main (convergence), and whether the git and
-// dev servers answer. --json reports the resolved session from the control
-// plane; the fleet listing that used to walk every live PIN is gone (plan 44).
 func runMonitor(cmd *cobra.Command, _ []string) error {
 	once, _ := cmd.Flags().GetBool("once")
 	asJSON, _ := cmd.Flags().GetBool("json")
@@ -989,9 +795,6 @@ func dashStr(s string) string {
 	return s
 }
 
-// boxRunnerFn is the one door onto a box's transport: TestHooks.BoxRunner when
-// a test has installed one, production's boxRunner otherwise. Every caller goes
-// through here so a fake docker host reaches `box add` and the wizard alike.
 func boxRunnerFn(cmd *cobra.Command, args []string) (box.Runner, error) {
 	if fake := testHooks().BoxRunner; fake != nil {
 		return fake(cmd, args)
@@ -999,8 +802,6 @@ func boxRunnerFn(cmd *cobra.Command, args []string) (box.Runner, error) {
 	return boxRunner(cmd, args)
 }
 
-// boxRunner picks the transport for a box command: --local provisions the
-// machine you are on, otherwise the first positional arg is the ssh target.
 func boxRunner(cmd *cobra.Command, args []string) (box.Runner, error) {
 	if local, _ := cmd.Flags().GetBool("local"); local {
 		return box.LocalRunner{}, nil
@@ -1008,21 +809,16 @@ func boxRunner(cmd *cobra.Command, args []string) (box.Runner, error) {
 	if len(args) < 1 || strings.HasPrefix(args[0], "-") {
 		return nil, fmt.Errorf("pass an ssh target (user@host) or --local")
 	}
-	// The literal target `local` means this machine — the form the first-run
-	// wizard accepts, since it asks for a target rather than a flag.
 	if strings.EqualFold(args[0], "local") {
 		return box.LocalRunner{}, nil
 	}
 	return &box.SSHRunner{Addr: args[0]}, nil
 }
 
-// boxRunnerForTarget builds a runner for an explicit target string, going
-// through the same seam `box add` uses so tests drive both with one fake.
 func boxRunnerForTarget(cmd *cobra.Command, target string) (box.Runner, error) {
 	return boxRunnerFn(cmd, []string{target})
 }
 
-// boxContainer resolves the container name: --name, else clubhouse-<pin>.
 func boxContainer(cmd *cobra.Command, pin string) string {
 	if n, _ := cmd.Flags().GetString("name"); n != "" {
 		return n
@@ -1030,16 +826,6 @@ func boxContainer(cmd *cobra.Command, pin string) string {
 	return "clubhouse-" + pin
 }
 
-// BoxAddOptions turns `box add` flags + environment into box.Options. Split out
-// from runBoxAdd because the wizard's remote-first path resolves the same
-// options for a box it provisions itself (standUpOnBox), so the two callers
-// cannot drift on which path the defaults select or which flags are meaningless
-// on the other one.
-//
-// Exported for the same reason it exists: that mapping is a decision rule with
-// a dozen branches, and reaching it through a real `box add` would need a
-// control plane and a docker host per branch — which is exactly the cost the
-// split was made to avoid.
 func BoxAddOptions(cmd *cobra.Command, pin string) (box.Options, error) {
 	warn := func(format string, a ...any) {
 		fmt.Fprintf(cmd.ErrOrStderr(), "warning: "+format+"\n", a...)
@@ -1073,22 +859,12 @@ func BoxAddOptions(cmd *cobra.Command, pin string) (box.Options, error) {
 	pullPolicy, _ := cmd.Flags().GetString("pull")
 	requireMatch, _ := cmd.Flags().GetBool("require-version-match")
 	noCutover, _ := cmd.Flags().GetBool("no-cutover")
-	// One control plane for both halves. The CLI polls its externally reachable
-	// URL; a local container may dial the same service over Docker DNS. These are
-	// routes, not separate control-plane identities.
 	control := controlClient(cmd)
 	containerControl := strings.TrimSpace(os.Getenv("CLUB_BOX_CONTROL"))
 	if containerControl == "" {
-		// TEMPORARY: every box currently runs beside the development compose
-		// control plane. Once production has a real public control-plane domain,
-		// remove this default and let the container fall back to control.Base.
 		containerControl = "http://clubhouse-control-plane:7777"
 	}
 
-	// `box add` means "the box hosts from now on", so the container claims the
-	// PIN over the incumbent. --no-cutover already means "don't move hosting
-	// here", so it opts out — and then the box is a client, where a dev command
-	// (and its install) has nowhere to run.
 	if noCutover && (devCmd != "" || installCmd != "") {
 		var dropped []string
 		if installCmd != "" {
@@ -1120,14 +896,9 @@ func BoxAddOptions(cmd *cobra.Command, pin string) (box.Options, error) {
 		ControlURL:          control.Base,
 		ContainerControlURL: containerControl,
 		Control:             control,
-		// A BYO box is SOMEBODY ELSE'S hardware, so it inherits whatever this
-		// laptop decided rather than our managed-box always-on rule. Telling it
-		// explicitly (rather than letting the container read its own absent
-		// file) is what makes `club telemetry on` here mean the box too.
-		Telemetry: byoBoxTelemetry(),
+		Telemetry:           byoBoxTelemetry(),
 	}
 	if buildLocal {
-		// --image is the local build tag here; "" → box's own "clubhouse-box".
 		opt.Image = image
 		if cmd.Flags().Changed("pull") {
 			warn("--pull has no effect with --build-local (nothing is pulled)")
@@ -1141,12 +912,6 @@ func BoxAddOptions(cmd *cobra.Command, pin string) (box.Options, error) {
 	return opt, nil
 }
 
-// runBoxAdd provisions a cloud dev box. Default (plan 23): docker pull the
-// published image matching this CLI's version and run it — no ship, no on-box
-// build. --build-local --binary keeps the old ship+build path for developing
-// club / registry-less boxes. By default it then flips the client-facing
-// rendezvous onto the box (plan 22) so existing clients follow on their next
-// sync — no re-join.
 func runBoxAdd(cmd *cobra.Command, args []string) error {
 	r, err := boxRunnerFn(cmd, args)
 	if err != nil {
@@ -1180,21 +945,7 @@ func runBoxAdd(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// provisionAndCutover boots the box and (unless noCutover) flips the session
-// onto it, publishing the box facts. Extracted so `box add` and the first-run
-// handoff share one implementation: seed resolution, the cutover generation
-// handling and PutBox are exactly the parts plan 25 got wrong twice, and a
-// second copy would get them wrong a third time.
-//
-// Seed resolution lives HERE rather than in `box add`, because that is the whole
-// point of the extraction. When it sat in the caller, the first-run handoff —
-// the other caller — silently skipped it, booted the box on `canonical.Create`
-// and orphaned the session's brief, contracts and scaffold on the laptop. Every
-// path that provisions a box gets the same answer or none of them do.
 func provisionAndCutover(ctx context.Context, cmd *cobra.Command, r box.Runner, pin string, opt box.Options, seedDir string, drain, noCutover bool) (*box.Box, error) {
-	// --seed-url is an override, not a requirement: the session's canonical is
-	// already on the control plane this CLI is talking to. Without this, a box
-	// booted a blank canonical and its dev server died on a missing package.json.
 	if opt.SeedURL == "" {
 		opt.SeedURL = ResolveSeedURL(ctx, pin, r.Target(), opt.Container)
 		switch {
@@ -1206,8 +957,6 @@ func provisionAndCutover(ctx context.Context, cmd *cobra.Command, r box.Runner, 
 		}
 	}
 	seedURL := opt.SeedURL
-	// Invite the box before it boots so the container can present a secret
-	// rather than self-register (plan 44 ticket 05).
 	if opt.MemberSecret == "" {
 		inv, err := controlClient(cmd).Invite(ctx, pin, controlplane.MemberJoinRequest{
 			Name: "box", Role: controlplane.RoleBox,
@@ -1224,9 +973,6 @@ func provisionAndCutover(ctx context.Context, cmd *cobra.Command, r box.Runner, 
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "box provisioned on %s (container %s)\n\n", b.Target, b.Container)
 
-	// A local --seed rides in on the same shared answer as --seed-url: this is
-	// the one place every provisioning path passes through, which is why seed
-	// resolution lives here at all (plan 33).
 	if seedDir != "" {
 		if err := canonical.SeedRemote(ctx, b.GitURL, seedDir, sbGit.SessionIdentity("host", pin)); err != nil {
 			return nil, fmt.Errorf("seed the box's canonical from %s: %w", seedDir, err)
@@ -1235,29 +981,18 @@ func provisionAndCutover(ctx context.Context, cmd *cobra.Command, r box.Runner, 
 	}
 
 	if !noCutover {
-		// Catch up main from whatever the box seeded from — and only that. The
-		// old fallback to "whatever the control plane resolves" is exactly the
-		// container Provision just `docker rm -f`'d whenever resolveSeedURL
-		// declined (see its doc), so catching up from it would dial an endpoint
-		// that died seconds ago. Previously harmless because the poisoned
-		// NewDialAddr made sameURL skip the catch-up entirely.
 		from := seedURL
 		client := controlClient(cmd)
 		logsURL := ""
 		if b.GitURL != "" {
-			// Prefer announced logs once the box has registered; fall back to sibling path.
 			// raw endpoint ok: republished verbatim through the cutover — the
-			// control plane stores what the box announced, not this machine's
-			// local resolution of it.
 			if sess, err := client.Session(ctx, pin); err == nil {
+				// raw endpoint ok: printed for a human, alongside the dev URL above.
 				if ep, ok := sess.Endpoints[controlplane.EndpointLogs]; ok {
 					logsURL = ep.URL
 				}
 			}
 		}
-		// Pass the generation the box announced at rather than letting Flip
-		// re-resolve: if anything else wrote in between, that is a racing writer
-		// and ErrGenerationConflict is the correct answer, not a clobber.
 		res, err := cutover.Flip(ctx, cutover.Options{
 			PIN: pin, NewDialAddr: b.GitURL, FromURL: from, Drain: drain,
 			Control: client, LogsURL: logsURL, Generation: b.Generation,
@@ -1280,10 +1015,6 @@ func provisionAndCutover(ctx context.Context, cmd *cobra.Command, r box.Runner, 
 	return b, nil
 }
 
-// printDevTail closes `box add` with the truth about the dev server. Telling the
-// operator to run `club box run … -- <dev command>` when --dev was supplied
-// contradicts the flag, and (before the box actually hosted) was wrong advice
-// besides — that container was serving nothing.
 func printDevTail(cmd *cobra.Command, args []string, pin, devCmd string, b *box.Box) {
 	out := cmd.OutOrStdout()
 	if devCmd == "" {
@@ -1292,9 +1023,6 @@ func printDevTail(cmd *cobra.Command, args []string, pin, devCmd string, b *box.
 	}
 	client := controlClient(cmd)
 	ctx := context.Background()
-	// Resolved, not raw: this URL is printed for a human to OPEN, and opening
-	// it is a dial. `club://<pin>/dev/` pasted into a browser is exactly the
-	// failure plan 41 fixes.
 	if devURL, err := devEndpoint(ctx, client, pin); err == nil && devURL != "" {
 		fmt.Fprintf(out, "dev:     %s\n", devURL)
 		return
@@ -1309,16 +1037,10 @@ func printDevTail(cmd *cobra.Command, args []string, pin, devCmd string, b *box.
 		logsURL = conductor.LogsURLFromRemote(b.GitURL)
 	}
 	fmt.Fprintf(out, "dev:     %q supervised on the box — logs: %s\n", devCmd, dashStr(logsURL))
-	// The box publishes the dev port at provision time, so the endpoint no
-	// longer waits on the repo committing a PORT — reaching here means the
-	// container has not registered yet, not that the project is missing
-	// something.
 	fmt.Fprintf(out, "         its URL appears once the container registers with the control plane\n")
 	fmt.Fprintf(out, "         watch it with:  club box logs\n")
 }
 
-// runElect implements plan 21: elect this laptop's harness CLI as the
-// conductor runner for a remote box (conductor-on-elector), or self-elect / revoke.
 func runElect(cmd *cobra.Command, _ []string) error {
 	s, p, err := sessionCtx(cmd)
 	if err != nil {
@@ -1362,7 +1084,7 @@ func runElect(cmd *cobra.Command, _ []string) error {
 	}
 
 	if self {
-		b := trust.NewBroker(trust.RemoteBox) // may be mid-migration; SelfElect flips to local
+		b := trust.NewBroker(trust.RemoteBox)
 		if err := b.SelfElect(name); err != nil {
 			return err
 		}
@@ -1371,9 +1093,6 @@ func runElect(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Remote box is the only case that needs election. Local/mesh sessions
-	// refuse — the trust hole must never open. Derive from the session's box
-	// record, never from an env a process can assert about itself.
 	sess, err := controlClient(cmd).Session(context.Background(), s.PIN)
 	if err != nil {
 		return err
@@ -1411,9 +1130,6 @@ func runElect(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// byoBoxTelemetry is what a `box add` box is told: this laptop's own setting.
-// The box has no human to ask, and its image carries no defaults.json, so the
-// machine that provisioned it answers on its behalf.
 func byoBoxTelemetry() string {
 	if on, _ := telemetry.Resolve(); on {
 		return telemetry.ModeOn

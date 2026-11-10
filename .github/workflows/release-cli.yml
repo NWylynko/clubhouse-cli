@@ -1,26 +1,5 @@
 name: release-cli
 
-# Cross-compile the laptop CLI and stamp controlplane.DefaultURL from the
-# repository variable CLUB_DEFAULT_CONTROL. A local `make build` needs no
-# stamp (loopback default); this is the delivery path for a deployed control
-# plane (plan 45b).
-#
-# On a `v*` tag this also publishes the GitHub Release, which is the only
-# distribution channel there is (plan 47 step 10 — homebrew was dropped, decided
-# not deferred). The assets are the files `make release` writes, under exactly
-# the names it writes them: scripts/install.sh derives the same name from
-# `uname`, and scripts/installer_test.go holds the three files to it.
-#
-# THIS REPO, not the monorepo (plan 49 phase B). The monorepo's copy of this
-# workflow checked out a tree that no longer contained the CLI and failed on
-# `no required module provides package .../cmd/club` — it had been dead
-# since the split and nothing said so, because no tag had been cut since.
-#
-# The same tag fires box-image.yml, so the CLI and the box image it pulls are
-# one release rather than two things that can drift. Both gate their publishing
-# step on the `release` environment's approval, so one tag produces one prompt
-# per artifact and neither is out before a human said so.
-
 on:
   push:
     branches: [main]
@@ -28,8 +7,6 @@ on:
       - "v*"
   workflow_dispatch:
 
-# One build per ref, so a burst of pushes to main supersedes rather than queues.
-# Tags are their own refs and never cancel each other.
 concurrency:
   group: release-cli-${{ github.ref }}
   cancel-in-progress: true
@@ -38,15 +15,6 @@ permissions:
   contents: write
 
 jobs:
-  # Decide whether this push is worth a build. The matrix is four
-  # cross-compiles; on a tag that is the release itself and never optional, but
-  # on main it would otherwise run for every commit, including ones that changed
-  # only markdown — and once more for the tag when `--follow-tags` pushed both,
-  # so a release paid for the same four binaries twice.
-  #
-  # Path filters in `on:` cannot express this: they apply to tag pushes too, and
-  # a tag placed on an already-pushed commit has no diff of its own, so the
-  # release build would be the thing skipped.
   guard:
     runs-on: ubuntu-latest
     outputs:
@@ -62,7 +30,6 @@ jobs:
           set -euo pipefail
           say() { echo "build=$1" >> "$GITHUB_OUTPUT"; echo "$2"; }
 
-          # A tag is a release. Never skipped, whatever it touched.
           if [ "${{ github.ref_type }}" = "tag" ]; then
             say true "tag ${GITHUB_REF_NAME}: building the release matrix"; exit 0
           fi
@@ -70,12 +37,10 @@ jobs:
             say true "${{ github.event_name }}: building on request"; exit 0
           fi
 
-          # The tag run is about to do this same build on this same commit.
           if [ -n "$(git tag --points-at HEAD)" ]; then
             say false "$(git tag --points-at HEAD | tr '\n' ' ')points at this commit — leaving the build to the tag run"; exit 0
           fi
 
-          # A new or force-pushed ref has no honest diff; build rather than guess.
           if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
              || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             say true "no usable previous commit — building"; exit 0
@@ -83,9 +48,6 @@ jobs:
 
           changed="$(git diff --name-only "$BEFORE" "$GITHUB_SHA")"
           echo "changed files:"; echo "$changed" | sed 's/^/  /'
-          # What ends up IN a binary, or decides how one is built. Everything
-          # else — the README, docs — cannot change a byte of the four artifacts
-          # this workflow uploads.
           if echo "$changed" | grep -qE '(\.go$|^go\.(mod|sum)$|^Makefile$|^scripts/|^box/Dockerfile|^\.github/workflows/release-cli\.yml$)'; then
             say true "source changed — building"
           else
@@ -99,9 +61,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # The tag IS the version: VERSION comes from `git describe --tags`, and
-          # a shallow checkout has no tags, so every asset would report
-          # 0.0.0-dev while looking like a successful release.
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
@@ -118,8 +77,6 @@ jobs:
       - name: Fetch bundled git (all arches)
         run: make fetch-git-all
       - name: Cross-compile release matrix
-        # CONTROL_URL on the command line, which beats any default in the
-        # Makefile — the documented CI stamping path (ADR 0006 decision 5a).
         run: make release CONTROL_URL=${{ steps.control.outputs.url }}
       - name: Check the matrix is complete and stamped
         run: |
@@ -127,27 +84,10 @@ jobs:
           for p in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
             test -s "dist/club-$p" || { echo "missing dist/club-$p" >&2; exit 1; }
           done
-          # The host-arch one is the only asset this runner can execute, so it is
-          # the one that can prove the tag and the control URL actually landed.
-          #
-          # `--version` reports BOTH stamps: the build's own version and the wire
-          # version it presents in X-Club-Version. They are separate link
-          # flags, so one can land while the other does not — and a missing wire
-          # stamp is not a cosmetic defect. It presents 0.0.0-dev, which is below
-          # every non-empty floor, so the day a floor first exists that release
-          # is refused by the control plane at its first knock, with the refusal
-          # recorded nowhere the person waiting can see it.
-          #
-          # This is asserted HERE rather than in a test on purpose (plan 49 step
-          # 4): a `go test` binary is unstamped by construction, so the only
-          # build where these can actually be wrong is the released one.
           got="$(./dist/club-linux-amd64 --version)"
           echo "linux-amd64 reports: $got"
           echo "$got" | grep -q "(wire " || {
             echo "binary does not report its wire version: $got" >&2; exit 1; }
-          # `if`, not `grep && exit` — under `set -e` a grep that correctly finds
-          # nothing would fail the whole `&&` list and kill the step, turning the
-          # good case into a red build.
           if echo "$got" | grep -q "wire 0.0.0-dev"; then
             echo "the wire version is unstamped — every request would be below any floor" >&2; exit 1
           fi
@@ -165,25 +105,8 @@ jobs:
           name: clubhouse-cli
           path: dist/club-*
 
-  # THE PUBLISH IS A SEPARATE JOB SO A HUMAN CAN STAND IN FRONT OF IT (plan 49).
-  #
-  # The build above is fix-forward: a bad one costs a re-push. The release below
-  # is not — it is the thing `install.sh` resolves and the thing
-  # clubhouse.sh/version reports to every installed client, and once
-  # strangers have pulled it, it is out. So the artifacts are built
-  # unconditionally and PUBLISHED only after the `release` environment's required
-  # reviewer says yes. Fix-forward is for code, not for artifacts strangers
-  # install.
-  #
-  # ⚠️ THE APPROVAL IS A REPOSITORY SETTING, NOT THIS FILE. Naming an environment
-  # that has no protection rules is not an error — GitHub creates it on first use
-  # and the job runs straight through. The required reviewer is configured in
-  # Settings → Environments → release, and it is free on a public repo. If nobody
-  # was ever prompted, that is what to check.
   publish:
     needs: release
-    # Tags only. A release per push to main would mint one per commit and make
-    # "latest" meaningless.
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment: release

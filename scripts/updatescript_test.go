@@ -10,35 +10,12 @@ import (
 	"testing"
 )
 
-// `club update` fetches scripts/update.sh from the site and pipes it into
-// sh, so this script is the whole update mechanism — the binary that runs it is
-// the binary it replaces. Two properties are worth a test and nothing else is:
-// it replaces the club you ALREADY HAVE (not a second one under
-// ~/.local/bin, which would leave `club --version` reporting the old one
-// forever), and it reuses install.sh rather than carrying a second copy of the
-// download logic that can drift from the release names.
-//
-// The site is a real HTTP server here, serving the real scripts/install.sh, so
-// what the test drives is the actual two-hop shape a user gets:
-//
-//	curl <site>/update.sh | sh   →   curl <site>/install.sh | sh
-//
-// with a fake `uname` and a fake `curl` underneath (installer_test.go's
-// writeFakeCurl, which answers the release URL itself and hands everything
-// else — the hop to the fake site — to the real curl). Nothing here reaches
-// GitHub.
-
-// updateEnv is one sandboxed run of scripts/update.sh against a fake site.
 type updateEnv struct {
-	t *testing.T
-	// dir is the sandbox root: dir/stub holds the fake uname+curl, dir/bin is
-	// where the "already installed" club lives.
+	t    *testing.T
 	dir  string
 	site *httptest.Server
 }
 
-// newUpdateEnv lays down an already-installed club whose bytes name the
-// version it is, so a test can tell a replaced binary from an untouched one.
 func newUpdateEnv(t *testing.T, installed string) *updateEnv {
 	t.Helper()
 	env := &updateEnv{t: t, dir: t.TempDir()}
@@ -58,7 +35,6 @@ func newUpdateEnv(t *testing.T, installed string) *updateEnv {
 		writeExec(t, filepath.Join(env.dir, "bin", "club"), installed)
 	}
 
-	// The site: the real install.sh, served the way the worker serves it.
 	root := repoRoot(t)
 	env.site = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/")
@@ -74,9 +50,6 @@ func newUpdateEnv(t *testing.T, installed string) *updateEnv {
 	return env
 }
 
-// run executes scripts/update.sh with the sandbox on PATH. extraEnv is how a
-// test drives the `club update` path, which passes the running binary's own
-// directory rather than letting the script resolve one.
 func (e *updateEnv) run(extraEnv ...string) (string, error) {
 	e.t.Helper()
 	cmd := exec.Command("sh", filepath.Join(repoRoot(e.t), "scripts", "update.sh"))
@@ -84,9 +57,6 @@ func (e *updateEnv) run(extraEnv ...string) (string, error) {
 		"PATH="+filepath.Join(e.dir, "stub")+string(os.PathListSeparator)+
 			filepath.Join(e.dir, "bin")+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"CLUB_SITE="+e.site.URL,
-		// So a script that ignored the resolved location and fell back to the
-		// default would install somewhere this test can see rather than into
-		// the developer's real ~/.local/bin.
 		"HOME="+filepath.Join(e.dir, "home"),
 	)
 	cmd.Env = append(cmd.Env, extraEnv...)
@@ -94,7 +64,6 @@ func (e *updateEnv) run(extraEnv ...string) (string, error) {
 	return string(out), err
 }
 
-// installedBytes is what sits at the sandbox's club right now.
 func (e *updateEnv) installedBytes() string {
 	e.t.Helper()
 	b, err := os.ReadFile(filepath.Join(e.dir, "bin", "club"))
@@ -104,10 +73,6 @@ func (e *updateEnv) installedBytes() string {
 	return string(b)
 }
 
-// TestUpdateShReplacesTheClubAlreadyOnPath is the whole point of a separate
-// updater: install.sh installs to ~/.local/bin, and a machine whose club
-// lives anywhere else would end up with two of them and keep running the old
-// one. The update has to land on the binary that is actually being used.
 func TestUpdateShReplacesTheClubAlreadyOnPath(t *testing.T) {
 	requireSh(t)
 	requireCurl(t)
@@ -119,16 +84,11 @@ func TestUpdateShReplacesTheClubAlreadyOnPath(t *testing.T) {
 	if got := env.installedBytes(); !strings.Contains(got, "the new club-linux-amd64") {
 		t.Fatalf("the club on PATH was not replaced — it is still %q\n%s", got, out)
 	}
-	// And nothing was installed beside it under the install.sh default.
 	if _, err := os.Stat(filepath.Join(env.dir, "home", ".local", "bin", "club")); err == nil {
 		t.Fatalf("update.sh installed a SECOND club under ~/.local/bin instead of replacing the one on PATH\n%s", out)
 	}
 }
 
-// TestUpdateShPrefersTheDirectoryItIsGiven: `club update` resolves its own
-// executable and hands that directory over, because a binary invoked by
-// absolute path is not on PATH at all — and updating "the club on PATH"
-// would then replace a different one, or none.
 func TestUpdateShPrefersTheDirectoryItIsGiven(t *testing.T) {
 	requireSh(t)
 	requireCurl(t)
@@ -153,9 +113,6 @@ func TestUpdateShPrefersTheDirectoryItIsGiven(t *testing.T) {
 	}
 }
 
-// TestUpdateShRefusesWhenThereIsNothingToUpdate: an update that silently
-// performs a first install would put club somewhere the user never chose,
-// and report success for a machine that still has no club on PATH.
 func TestUpdateShRefusesWhenThereIsNothingToUpdate(t *testing.T) {
 	requireSh(t)
 	requireCurl(t)
@@ -169,10 +126,6 @@ func TestUpdateShRefusesWhenThereIsNothingToUpdate(t *testing.T) {
 	}
 }
 
-// TestUpdateShFetchesTheInstallerRatherThanCopyingIt closes the loop the
-// installer tests opened: three files agree on the asset name, and update.sh
-// must not become a fourth that can disagree. It has no `uname` mapping of its
-// own — the proof is that the script's text never names an asset or a platform.
 func TestUpdateShFetchesTheInstallerRatherThanCopyingIt(t *testing.T) {
 	body := readRepoFile(t, "scripts/update.sh")
 	for _, forbidden := range []string{"darwin", "aarch64", "x86_64", "club-linux", "releases/latest"} {

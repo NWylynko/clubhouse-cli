@@ -1,5 +1,3 @@
-// Package detect probes a machine for stack + host-capability (plan 13).
-// Detection only — never installs toolchains.
 package detect
 
 import (
@@ -10,27 +8,24 @@ import (
 	"strings"
 )
 
-// Stack is a detected language runtime + package manager pair.
 type Stack struct {
-	Runtime string // node, python, go, rust, static, unknown
+	Runtime string
 	Version string
-	PkgMgr  string // pnpm, npm, yarn, uv, pip, go, cargo, none
+	PkgMgr  string
 }
 
-// Profile is a machine's capability as a potential host.
 type Profile struct {
 	Hostname   string  `json:"hostname"`
 	GOOS       string  `json:"goos"`
 	GOARCH     string  `json:"goarch"`
 	NumCPU     int     `json:"numCpu"`
-	MemMB      int     `json:"memMb"` // best-effort; 0 if unknown
+	MemMB      int     `json:"memMb"`
 	OnBattery  bool    `json:"onBattery"`
 	Stacks     []Stack `json:"stacks"`
-	HasRuntime bool    `json:"hasRuntime"` // project runtime present
-	Score      int     `json:"score"`      // filled by Rank
+	HasRuntime bool    `json:"hasRuntime"`
+	Score      int     `json:"score"`
 }
 
-// Probe inspects the current machine.
 func Probe() Profile {
 	p := Profile{
 		GOOS:   runtime.GOOS,
@@ -47,7 +42,6 @@ func Probe() Profile {
 	return p
 }
 
-// DefaultStack picks the best default for the host-start tap (§9.3).
 func (p Profile) DefaultStack() Stack {
 	prefer := []string{"node", "python", "go", "rust"}
 	byRT := map[string]Stack{}
@@ -67,14 +61,12 @@ func (p Profile) DefaultStack() Stack {
 	return Stack{Runtime: "static", PkgMgr: "none"}
 }
 
-// Rank orders profiles best-host-first. Prefers AC power + existing runtime + RAM/CPU.
 func Rank(profiles []Profile) []Profile {
 	out := make([]Profile, len(profiles))
 	copy(out, profiles)
 	for i := range out {
 		out[i].Score = score(out[i])
 	}
-	// simple insertion sort by score desc
 	for i := 1; i < len(out); i++ {
 		for j := i; j > 0 && out[j].Score > out[j-1].Score; j-- {
 			out[j], out[j-1] = out[j-1], out[j]
@@ -133,13 +125,12 @@ func whichVersion(bin string, args ...string) (string, bool) {
 	cmd := exec.Command(bin, args...)
 	b, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", true // present but weird
+		return "", true
 	}
 	return strings.TrimSpace(string(b)), true
 }
 
 func memMB() int {
-	// Linux: MemTotal from /proc/meminfo
 	b, err := os.ReadFile("/proc/meminfo")
 	if err != nil {
 		return 0
@@ -157,7 +148,6 @@ func memMB() int {
 }
 
 func onBattery() bool {
-	// Linux sysfs; unknown → assume AC (don't punish).
 	b, err := os.ReadFile("/sys/class/power_supply/BAT0/status")
 	if err != nil {
 		return false

@@ -13,14 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// runTake implements `club take <git|dev|conductor|all>` — the manual half
-// of placement (plan 30). Automatic placement covers the case nobody is around
-// for; this covers the case where somebody is, and it is also how a returning
-// creator picks its services back up.
-//
-// It cannot steal from a live owner. `take git` against a healthy box is
-// refused, which is plan 25's guarantee restated as a lease: nothing is ever
-// taken from an owner that is still serving.
 func runTake(cmd *cobra.Command, args []string) error {
 	s, _, err := sessionCtx(cmd)
 	if err != nil {
@@ -51,9 +43,6 @@ func runTake(cmd *cobra.Command, args []string) error {
 			TTLSeconds: controlplane.DefaultLeaseTTL, Force: force,
 		})
 		if err != nil {
-			// A live owner refusing is the mechanism working. Say who has it and
-			// what the escape hatch is, then keep going: `take all` should place
-			// what it can rather than stopping at the first held service.
 			failed = append(failed, fmt.Sprintf("%s: %v", svc, err))
 			fmt.Fprintf(out, "%-10s refused — %v\n", svc, err)
 			continue
@@ -67,9 +56,6 @@ func runTake(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// runHandOff implements `club hand-off <service> [--to <member>]` — give a
-// service up on purpose, without waiting for a lease to expire. With no target
-// it simply frees the service and placement re-homes it.
 func runHandOff(cmd *cobra.Command, args []string) error {
 	s, _, err := sessionCtx(cmd)
 	if err != nil {
@@ -110,8 +96,6 @@ func runHandOff(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// servicesArg expands the argument, including the `all` shorthand a returning
-// creator types.
 func servicesArg(arg string) ([]string, error) {
 	if strings.EqualFold(arg, "all") {
 		return controlplane.Services, nil
@@ -124,9 +108,6 @@ func servicesArg(arg string) ([]string, error) {
 	return nil, fmt.Errorf("unknown service %q — club places %s", arg, strings.Join(controlplane.Services, ", "))
 }
 
-// resolveMember finds this machine's member id. A machine with session state
-// but no member id is not a member — it must join (or be invited), never
-// silently self-register (plan 44).
 func resolveMember(s session.Session) (string, error) {
 	if s.MemberID != "" {
 		return s.MemberID, nil
@@ -146,13 +127,6 @@ func memberIDByName(ctx context.Context, client *controlplane.Client, pin, name 
 	return id, nil
 }
 
-// MemberIDAmong resolves a hand-off target. Left members keep their secret's
-// authority but are not addressable by name — never resolve to a ghost (plan 44).
-//
-// Exported because that exclusion is the decision rule and its worst case is
-// unreachable from outside: the Session API never returns a left member, so the
-// only way to prove a caller who somehow held one cannot address it is to hand
-// this the roster directly.
 func MemberIDAmong(members []controlplane.Member, name string) (string, error) {
 	var known []string
 	for _, m := range members {
@@ -167,8 +141,6 @@ func MemberIDAmong(members []controlplane.Member, name string) (string, error) {
 	return "", fmt.Errorf("members: %s", strings.Join(known, ", "))
 }
 
-// runServices prints the current placement: where each service is, and why an
-// unplaced one is unplaced.
 func runServices(cmd *cobra.Command, _ []string) error {
 	s, _, err := sessionCtx(cmd)
 	if err != nil {

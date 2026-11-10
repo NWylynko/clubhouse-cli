@@ -10,16 +10,8 @@ import (
 	"time"
 )
 
-// Trace, if set, is invoked after every git invocation. club wires it to
-// the debug logger (see internal/cli) so a CLUB_LOG=debug run shows every git
-// command the host/join loops fire, how long it took, and whether it failed —
-// the single most useful thing when a sync/merge misbehaves. Left nil in tests
-// and normal runs so there is zero overhead when tracing is off.
 var Trace func(dir string, args []string, dur time.Duration, err error)
 
-// hermeticConfig are the -c key=value flags passed on every invocation so a
-// hostile ~/.gitconfig (custom merge drivers, rerere, autocrlf, …) cannot
-// change merge results. Fixed merge/diff/line-ending behavior = determinism.
 var hermeticConfig = []string{
 	"core.autocrlf=false",
 	"core.safecrlf=false",
@@ -33,23 +25,12 @@ var hermeticConfig = []string{
 	"init.defaultBranch=main",
 }
 
-// HermeticConfig returns the -c key=value pairs applied on every invocation.
 func HermeticConfig() []string {
 	out := make([]string, len(hermeticConfig))
 	copy(out, hermeticConfig)
 	return out
 }
 
-// Env builds the controlled environment for a bundled-git invocation.
-// User global/system configs are disabled, and identity defaults to
-// HermeticIdentity — a caller that supplies its own (SessionIdentity) passes it
-// in `extra`, which is appended LAST and therefore wins, since the final
-// occurrence of a variable is the one exec applies.
-//
-// Identity is in the base for the same reason the config files are excluded:
-// without it git does not fail, it guesses from the unix account and GECOS, so
-// the author of a commit varied by machine and was unavailable entirely on a
-// runner with no GECOS entry.
 func Env(extra ...string) []string {
 	env := []string{
 		"GIT_CONFIG_NOSYSTEM=1",
@@ -57,46 +38,14 @@ func Env(extra ...string) []string {
 		"GIT_CONFIG_SYSTEM=/dev/null",
 		"GIT_TERMINAL_PROMPT=0",
 		"GIT_OPTIONAL_LOCKS=0",
-		// ⚠️ There is deliberately NO GIT_ALLOW_PROTOCOL here, and adding one is a
-		// net loss. It looks like free defence in depth against a URL that arrives
-		// over the wire; measured against the pinned git, it is the opposite.
-		//
-		// What it would close: nothing. git's own default policy for `ext` — the
-		// one transport that turns a URL into a shell — is NEVER, not "allowed
-		// unless GIT_PROTOCOL_FROM_USER says otherwise". `git clone 'ext::sh -c …'`
-		// against git 2.52 answers `fatal: transport 'ext' not allowed` with no
-		// config and no env at all. That is the layer we rely on. (`fd::` is NOT
-		// in the same class despite reading like it — it hands git a descriptor
-		// the caller already opened, is gated at `user` like `file`, and is not
-		// command execution.)
-		//
-		// What it would open: GIT_ALLOW_PROTOCOL is equivalent to protocol.allow=
-		// never plus protocol.<name>.allow=ALWAYS for each name listed — so listing
-		// `file` promotes it out of git's default `user` policy, which is what stops
-		// a file:// URL that did NOT come from the user (a submodule URL, an HTTP
-		// redirect) from being dialled. A member may publish an http:// endpoint,
-		// so a redirect to file:// is reachable by exactly the actor the finding
-		// was about. Listing a protocol to protect it is how you unprotect it.
-		//
-		// The invariant we actually depend on is git's default, so it is pinned by
-		// a test rather than by config: internal/git/protocol_test.go in the
-		// monorepo asserts a bundled-git `ext::` clone is refused AND does not run
-		// its command, and that `file` is still gated at `user`. A git bump that
-		// changed either goes red there. Full reasoning, including the ssh trap an
-		// allowlist would have sprung on the durability mirror:
-		// docs/security-findings/git-transport-injection.md.
 		"GIT_AUTHOR_NAME=" + HermeticIdentity.Name,
 		"GIT_AUTHOR_EMAIL=" + HermeticIdentity.Email,
 		"GIT_COMMITTER_NAME=" + HermeticIdentity.Name,
 		"GIT_COMMITTER_EMAIL=" + HermeticIdentity.Email,
 		"LANG=C",
 		"LC_ALL=C",
-		// Keep PATH minimal — the launcher must not find a system git helper
-		// that disagrees with our pin. cmd/git sets its own exec-path.
 		"PATH=/usr/bin:/bin",
 	}
-	// Preserve HOME only so the launcher can resolve relative paths if needed;
-	// global config is already nulled out above.
 	if h := os.Getenv("HOME"); h != "" {
 		env = append(env, "HOME="+h)
 	}
@@ -106,17 +55,14 @@ func Env(extra ...string) []string {
 	return append(env, extra...)
 }
 
-// Cmd is a hermetic git invocation rooted at Dir (optional). All git traffic
-// in club must go through Cmd — never exec.Command("git", …).
 type Cmd struct {
-	Dir    string   // working tree / repo; passed as the process cwd
-	Env    []string // additional env (e.g. GIT_AUTHOR_NAME); merged onto hermetic base
+	Dir    string
+	Env    []string
 	Stdin  []byte
 	Stdout *bytes.Buffer
 	Stderr *bytes.Buffer
 }
 
-// Run executes `git <args…>` with hermetic -c flags and the bundled binary.
 func (c *Cmd) Run(ctx context.Context, args ...string) error {
 	bin, err := Bin()
 	if err != nil {
@@ -163,7 +109,6 @@ func (c *Cmd) Run(ctx context.Context, args ...string) error {
 	return nil
 }
 
-// Output runs git and returns stdout.
 func (c *Cmd) Output(ctx context.Context, args ...string) (string, error) {
 	var stdout, stderr bytes.Buffer
 	c.Stdout = &stdout
@@ -174,12 +119,10 @@ func (c *Cmd) Output(ctx context.Context, args ...string) (string, error) {
 	return stdout.String(), nil
 }
 
-// Run is a convenience for one-shot invocations with no extra env.
 func Run(ctx context.Context, dir string, args ...string) error {
 	return (&Cmd{Dir: dir}).Run(ctx, args...)
 }
 
-// Output is a convenience for one-shot invocations returning stdout.
 func Output(ctx context.Context, dir string, args ...string) (string, error) {
 	return (&Cmd{Dir: dir}).Output(ctx, args...)
 }

@@ -8,14 +8,6 @@ import (
 	"github.com/nwylynko/clubhouse-cli/telemetry"
 )
 
-// `club telemetry on|off|status` is where a human decides whether THIS
-// MACHINE sends anything (plan 46 ticket 12).
-//
-// It is a per-machine setting, not a per-session one: it is a statement about
-// this laptop's data, and re-answering it per session would make "is it on?"
-// unanswerable. Off until somebody types `on` — a tool whose repo goes public
-// so people can verify it is not doing anything behind their back cannot phone
-// home silently.
 func newTelemetryCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "telemetry",
@@ -46,8 +38,6 @@ func newTelemetryCmd() *cobra.Command {
 	return cmd
 }
 
-// runTelemetryStatus answers the two questions status exists for at once: "why
-// did this laptop produce no rows" and "prove to me the default is off".
 func runTelemetryStatus(cmd *cobra.Command, _ []string) error {
 	_, why := telemetry.Resolve()
 	fmt.Fprintln(cmd.OutOrStdout(), why)

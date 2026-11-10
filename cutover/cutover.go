@@ -1,7 +1,3 @@
-// Package cutover flips a session onto a relocated canonical (cloud box or
-// migrated host) via the control plane and optionally catch-ups main first
-// (plan 22 + 24). Client half is syncengine.FollowHost on the next sync —
-// this package is only the host-side announce.
 package cutover
 
 import (
@@ -15,23 +11,18 @@ import (
 
 var log = logx.New("cutover")
 
-// Options for a control-plane flip.
 type Options struct {
 	PIN         string
-	NewDialAddr string // box / new host git URL
-	LogsURL     string // optional /logs sibling
-	OverlayAddr string // empty → club-<pin>.host
+	NewDialAddr string
+	LogsURL     string
+	OverlayAddr string
 	Control     *controlplane.Client
-	// Generation is the writer's current generation (required).
 	Generation  int
 	HostMachine string
-	// FromURL, when set, is the old canonical. Catch-up pushes its main into
-	// NewDialAddr before the flip.
-	FromURL string
-	Drain   bool
+	FromURL     string
+	Drain       bool
 }
 
-// Result of a completed cutover.
 type Result struct {
 	DialAddr   string
 	Generation int
@@ -39,8 +30,6 @@ type Result struct {
 	Drained    bool
 }
 
-// Flip catch-ups (optional) then posts /cutover on the control plane. Existing
-// clients pick it up on their next sync via syncengine.FollowHost — no re-join.
 func Flip(ctx context.Context, opt Options) (*Result, error) {
 	if opt.PIN == "" || opt.NewDialAddr == "" {
 		return nil, fmt.Errorf("cutover: PIN and NewDialAddr required")
@@ -49,7 +38,6 @@ func Flip(ctx context.Context, opt Options) (*Result, error) {
 		return nil, fmt.Errorf("cutover: need Control client")
 	}
 	if opt.Generation <= 0 {
-		// Look up current generation if caller didn't know.
 		sess, err := opt.Control.Session(ctx, opt.PIN)
 		if err != nil {
 			return nil, fmt.Errorf("cutover: resolve generation: %w", err)

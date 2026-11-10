@@ -11,41 +11,16 @@ import (
 	"github.com/nwylynko/clubhouse-cli/contracts"
 )
 
-// This file is plan 31: how club's own files get out of a generator's way
-// and back again.
-//
-// The setup role is told to prefer the ecosystem's generator over hand-writing
-// files, and every one of them refuses to run in a directory holding anything
-// outside a small tolerated list. `README.md`, `.gitignore`, `.git` and
-// `LICENSE` are on that list. `AGENTS.md`, `CLAUDE.md`, `.cursor/` and
-// `.club/` are not — and since plan 31 those are on main before the role
-// ever runs. So they move aside for the scaffold turn.
-//
-// Putting them back is the interesting half, because a modern generator may
-// write its **own** `AGENTS.md`, which is good and must survive. A blind restore
-// would destroy exactly the thing worth keeping.
-
-// privateDir is club's own namespace. Nothing else writes there — the agent
-// is told so in as many words — so it is restored mechanically and is never an
-// agent's decision. Losing brief.md would disable the setup role for the rest of
-// the session.
 const privateDir = ".club"
 
-// incomingDir is where a colliding contract waits for the merge turn. It sits
-// inside the work tree because that is the only place the agent can read, and
-// it must be gone before the commit — which verify enforces.
 const incomingDir = ".clubhouse-incoming"
 
-// heldFiles is what was moved out of the work tree for the scaffold turn.
 type heldFiles struct {
-	dir       string            // holding area, outside the work tree
-	private   bool              // .club was moved
-	contracts map[string]string // work-tree-relative path → held absolute path
+	dir       string
+	private   bool
+	contracts map[string]string
 }
 
-// setAside empties the work tree of club's own files so a generator will
-// run in it. Only called in scaffold mode: adapt mode has a real project, no
-// generator is involved, and nothing collides.
 func setAside(work string) (*heldFiles, error) {
 	hold, err := os.MkdirTemp("", "clubhouse-held-*")
 	if err != nil {
@@ -71,22 +46,14 @@ func setAside(work string) (*heldFiles, error) {
 			return nil, fmt.Errorf("set aside %s: %w", rel, err)
 		}
 		h.contracts[rel] = dst
-		// An emptied `.cursor/` is still a directory entry, and the generator
-		// counts entries, not files.
 		pruneEmptyDirs(work, filepath.Dir(src))
 	}
 	return h, nil
 }
 
-// restore gives the held files back and reports which ones the generator had
-// already written for itself. Those are staged under incomingDir for the merge
-// turn; everything else is simply moved home, because "put this file back where
-// it was" is not a decision worth an agent turn.
 func (h *heldFiles) restore(work string) ([]string, error) {
 	if h.private {
 		dst := filepath.Join(work, privateDir)
-		// The agent was told not to touch this namespace. If it did anyway,
-		// club's copy is the authoritative one.
 		if err := os.RemoveAll(dst); err != nil {
 			return nil, err
 		}
@@ -123,33 +90,24 @@ func (h *heldFiles) restore(work string) ([]string, error) {
 	return collided, nil
 }
 
-// cleanup drops the holding area. The work tree is the source of truth by now.
 func (h *heldFiles) cleanup() {
 	if h != nil && h.dir != "" {
 		_ = os.RemoveAll(h.dir)
 	}
 }
 
-// verify is the guard. A merge that quietly dropped the sync protocol is worse
-// than one that failed: the session looks healthy and nobody's work ever lands,
-// because no agent was ever told to run `club sync`. Same posture as
-// guardStaged — refuse, name the file, leave main where it was.
 func (h *heldFiles) verify(work string) error {
 	if exists(filepath.Join(work, incomingDir)) {
 		return fmt.Errorf("%s still holds files the merge turn did not fold in", incomingDir)
 	}
 	for _, rel := range contracts.Files {
 		if _, held := h.contracts[rel]; !held {
-			continue // never on main to begin with; nothing was promised
+			continue
 		}
 		body, err := os.ReadFile(filepath.Join(work, filepath.FromSlash(rel)))
 		if err != nil {
 			return fmt.Errorf("%s went missing during the merge: %w", rel, err)
 		}
-		// Per-file, because the contracts no longer say the same thing: AGENTS.md
-		// carries the protocol and CLAUDE.md carries the pointer at it. A merge
-		// that drops either one leaves a file that still looks like a contract
-		// and instructs nobody.
 		if needle := contracts.Requires(rel); !strings.Contains(string(body), needle) {
 			return fmt.Errorf("%s no longer contains %q — without it agents edit happily and never land anything",
 				rel, needle)
@@ -158,8 +116,6 @@ func (h *heldFiles) verify(work string) error {
 	return nil
 }
 
-// mergePrompt asks for the one thing that genuinely needs judgement: reconciling
-// a file the scaffold wrote with club's copy of the same path.
 func mergePrompt(collided []string) string {
 	var b strings.Builder
 	b.WriteString(`You are club's setup role-agent, continuing from the project you just created.
@@ -187,9 +143,6 @@ func exists(path string) bool {
 	return err == nil
 }
 
-// pruneEmptyDirs removes now-empty directories from dir upwards, stopping at
-// root. A generator counts directory entries, so an emptied `.cursor/` is still
-// enough to make it refuse.
 func pruneEmptyDirs(root, dir string) {
 	root = filepath.Clean(root)
 	for dir = filepath.Clean(dir); strings.HasPrefix(dir, root) && dir != root; dir = filepath.Dir(dir) {
@@ -203,9 +156,6 @@ func pruneEmptyDirs(root, dir string) {
 	}
 }
 
-// scaffoldHandover runs the set-aside → scaffold → merge sequence and leaves the
-// work tree ready to commit. Split out of Tick so the ordering — and especially
-// the fact that verify runs before anything is staged — reads in one place.
 func (s *Setup) scaffoldHandover(runCtx context.Context, work, prompt string, onActivity func(string)) error {
 	held, err := setAside(work)
 	if err != nil {

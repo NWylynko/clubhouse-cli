@@ -1,18 +1,3 @@
-// Command clubnextversion derives the next release number from the wire-change
-// ledger and prints what cutting it would take.
-//
-// It reads `.wire-changes/` and the last tag reachable from HEAD, and writes a
-// page to stdout: the derived version, the changelog block (the entries' own
-// sentences, verbatim), and the consume → commit → tag sequence. It never tags
-// and never pushes — the same shape as `make deploy-checklist`, which prints
-// wrangler commands nothing in this repo runs.
-//
-//	make next-version           # derive and print; writes nothing
-//	make next-version-consume   # the one writing step, and step one of the sequence
-//
-// `-consume` deletes the pending entries and appends their sentences to
-// CHANGELOG.md under the new heading. With an empty ledger it writes nothing and
-// says so, so running the sequence twice is harmless.
 package main
 
 import (
@@ -40,9 +25,6 @@ func main() {
 	}
 	rel, err := nextversion.LoadRelease(ctx, root, lastTag)
 	if err != nil {
-		// The parser's own sentence, unwrapped: it already names the file and
-		// the fix, and "next version: invalid entry" would send the reader to
-		// grep this repo instead of to the entry they got wrong.
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

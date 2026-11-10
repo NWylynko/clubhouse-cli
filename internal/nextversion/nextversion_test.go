@@ -15,15 +15,6 @@ import (
 
 const repoRoot = "../.."
 
-// THE PIN (plan 48 step 7 acceptance): a fixture ledger derives one version and
-// one changelog, BYTE FOR BYTE. Not "contains v1.0.0" — the whole printed page,
-// because the page is the deliverable: it is what Nick reads at tag time and
-// what he pastes, and a derivation that is right in a field and wrong in a
-// sentence is a release cut on a misreading.
-//
-// The fixture holds one entry of every class plus the ledger's own README (which
-// is never an entry), so the grouping, the ordering and the max(class) rule are
-// all pinned by the same bytes.
 func TestAFixtureLedgerDerivesThePinnedVersionAndPageByteForByte(t *testing.T) {
 	rel := loadFixture(t, "ledger-mixed", "v0.1.0")
 
@@ -37,9 +28,6 @@ func TestAFixtureLedgerDerivesThePinnedVersionAndPageByteForByte(t *testing.T) {
 	assertGolden(t, "mixed-print.txt", out.String())
 }
 
-// An empty ledger is a PATCH, and the page says why in the same breath — the
-// rule that is least obvious to whoever reads this at tag time is the one it has
-// to explain: releases change more than the wire.
 func TestAnEmptyLedgerDerivesAPatchAndSaysWhy(t *testing.T) {
 	rel := loadFixture(t, "ledger-empty", "v0.1.0")
 
@@ -56,8 +44,6 @@ func TestAnEmptyLedgerDerivesAPatchAndSaysWhy(t *testing.T) {
 	assertGolden(t, "empty-print.txt", out.String())
 }
 
-// The bump rule itself, against every shape of ledger — max(class), never the
-// count, and never the order the entries were filed in.
 func TestTheBumpIsMaxClassOverThePendingEntries(t *testing.T) {
 	breaking := wirechanges.Entry{File: ".wire-changes/b.md", Slug: "b", Class: wirechanges.ClassBreaking, Floor: "v1.4.0", Sentence: "An old client is refused."}
 	additive := wirechanges.Entry{File: ".wire-changes/a.md", Slug: "a", Class: wirechanges.ClassAdditive, Sentence: "An old client keeps working."}
@@ -76,9 +62,6 @@ func TestTheBumpIsMaxClassOverThePendingEntries(t *testing.T) {
 		{"a minor resets the patch", "v0.4.7", []wirechanges.Entry{additive}, "v0.5.0"},
 		{"a major resets both", "v0.4.7", []wirechanges.Entry{breaking}, "v1.0.0"},
 		{"past 1.0 the major still just moves", "v1.9.9", []wirechanges.Entry{breaking}, "v2.0.0"},
-		// A human overrode the suggestion for a reason the wire cannot see. The
-		// tool tolerates it silently: the next derivation reads whatever tag it
-		// finds, and carries on from there.
 		{"a marketing jump is just the last tag", "v3.0.0", []wirechanges.Entry{additive}, "v3.1.0"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -93,9 +76,6 @@ func TestTheBumpIsMaxClassOverThePendingEntries(t *testing.T) {
 	}
 }
 
-// A tag the derivation cannot bump stops the tool NAMING the tag and the fix.
-// Guessing (treating a garbled tag as v0.0.0) would print a plausible number
-// derived from nothing, and a plausible number is the one that gets tagged.
 func TestAnUnbumpableLastTagFailsNamingTheTag(t *testing.T) {
 	for _, tc := range []struct{ name, lastTag string }{
 		{"no tag at all", ""},
@@ -117,10 +97,6 @@ func TestAnUnbumpableLastTagFailsNamingTheTag(t *testing.T) {
 	}
 }
 
-// CONSUMPTION: the entries are deleted, their sentences land in CHANGELOG.md
-// VERBATIM under the new heading, and the README survives. Pinned byte for byte
-// against a CHANGELOG that already has an older release in it, because "append"
-// and "newest first" are different files and only one of them is readable.
 func TestConsumingEmptiesTheLedgerAndAppendsTheSentencesVerbatim(t *testing.T) {
 	tree := copyFixture(t, "ledger-mixed")
 	rel := loadTree(t, tree, "v0.1.0")
@@ -142,9 +118,6 @@ func TestConsumingEmptiesTheLedgerAndAppendsTheSentencesVerbatim(t *testing.T) {
 	}
 	assertGolden(t, "mixed-changelog-after.md", string(got))
 
-	// The ledger is empty, and empty means "no entries" — not "no folder" and
-	// not "no README": the next agent stopped by the tripwire arrives here to
-	// read the format.
 	left, err := wirechanges.LoadPending(tree)
 	if err != nil {
 		t.Fatalf("ledger after consumption: %v", err)
@@ -156,9 +129,6 @@ func TestConsumingEmptiesTheLedgerAndAppendsTheSentencesVerbatim(t *testing.T) {
 		t.Fatalf("consumption deleted the ledger's README: %v", err)
 	}
 
-	// Run it again on the emptied tree: nothing pending, so nothing appended
-	// and CHANGELOG.md is untouched. Running the sequence twice is a thing that
-	// happens at 1am, and the second run must not write a second empty heading.
 	again := loadTree(t, tree, "v0.1.0")
 	result, err = nextversion.ConsumeLedger(tree, again)
 	if err != nil {
@@ -176,9 +146,6 @@ func TestConsumingEmptiesTheLedgerAndAppendsTheSentencesVerbatim(t *testing.T) {
 	}
 }
 
-// A CHANGELOG that is nothing but releases (no header) still gets the new one on
-// top, with no blank line above it. The header is a convention, not a parser
-// requirement — trimming it should not produce a file that starts with padding.
 func TestConsumingIntoAHeaderlessChangelogPutsTheReleaseOnTop(t *testing.T) {
 	tree := copyFixture(t, "ledger-additive-only")
 	if err := os.WriteFile(filepath.Join(tree, nextversion.ChangelogPath), []byte("## v0.1.0\n\n- The first tag.\n"), 0o644); err != nil {
@@ -198,8 +165,6 @@ func TestConsumingIntoAHeaderlessChangelogPutsTheReleaseOnTop(t *testing.T) {
 	}
 }
 
-// PRINT MODE WRITES NOTHING. The whole shape of this tool — print, never act —
-// is one filesystem assertion away from being a claim in a comment.
 func TestPrintModeWritesNothing(t *testing.T) {
 	tree := copyFixture(t, "ledger-mixed")
 	before := snapshotTree(t, tree)
@@ -214,10 +179,6 @@ func TestPrintModeWritesNothing(t *testing.T) {
 	}
 }
 
-// A malformed entry stops the tool with the PARSER'S OWN sentence — the file and
-// the fix, not "load release: 1 error". The agent reading it has just been
-// stopped by a guard they did not know existed, and a wrapped error sends them
-// to read this package's source instead of the entry they got wrong.
 func TestAMalformedEntryFailsNamingTheFileAndTheFix(t *testing.T) {
 	dir := filepath.Join("testdata", "ledger-malformed")
 	_, err := nextversion.LoadRelease(context.Background(), dir, "v0.1.0")
@@ -236,11 +197,6 @@ func TestAMalformedEntryFailsNamingTheFileAndTheFix(t *testing.T) {
 	}
 }
 
-// The last tag is the nearest one REACHABLE FROM HEAD, not the highest tag on
-// the repo: the derivation describes the tree being released, and a tag on a
-// branch this commit never saw does not order it. Run against a real repo built
-// with bundled git, because that is the only way to know which of the two
-// `git describe` answers this tool is actually getting.
 func TestLastReleaseTagReadsTheNearestTagReachableFromHead(t *testing.T) {
 	requireBundledGit(t)
 	ctx := context.Background()
@@ -268,7 +224,6 @@ func TestLastReleaseTagReadsTheNearestTagReachableFromHead(t *testing.T) {
 	run("init")
 	commit("one")
 
-	// No tag yet: the tool must say so rather than invent a baseline.
 	if _, err := nextversion.LastReleaseTag(ctx, repo); err == nil {
 		t.Fatal("an untagged repo produced a last tag")
 	} else if !strings.Contains(err.Error(), "git tag") {
@@ -287,7 +242,6 @@ func TestLastReleaseTagReadsTheNearestTagReachableFromHead(t *testing.T) {
 		t.Fatalf("last tag %q, want v0.1.0 — describe --abbrev=0 should drop the distance suffix", got)
 	}
 
-	// A tag on a branch HEAD cannot see is not this tree's last release.
 	run("checkout", "-b", "sidebranch")
 	commit("four")
 	run("tag", "-a", "v9.9.9", "-m", "v9.9.9")
@@ -301,12 +255,6 @@ func TestLastReleaseTagReadsTheNearestTagReachableFromHead(t *testing.T) {
 	}
 }
 
-// THIS REPO'S OWN LEDGER IS DERIVABLE, always. It is deliberately not pinned to
-// a number: the real ledger is consumed at the real next tag, and a test that
-// pinned v0.2.0 would go red on the release it exists to serve. What must never
-// happen is `make next-version` failing on the tree it is about to tag, and that
-// is what this asserts — every pending entry parses, and the derivation lands on
-// a version above the tag it came from.
 func TestTheRealLedgerAlwaysDerivesARelease(t *testing.T) {
 	entries, err := wirechanges.LoadPending(repoRoot)
 	if err != nil {
@@ -321,10 +269,6 @@ func TestTheRealLedgerAlwaysDerivesARelease(t *testing.T) {
 	}
 }
 
-// The ledger this repo holds TODAY, copied into testdata on 2026-08-11, derives
-// v0.2.0 from v0.1.0 — the number plan 48's own `Member` field earns. Pinned
-// against the copy rather than the folder so it keeps saying something true
-// after the real entry is consumed.
 func TestTheLedgerAsItStandsTodayDerivesAMinor(t *testing.T) {
 	rel := loadFixture(t, "ledger-additive-only", "v0.1.0")
 	if len(rel.Entries) != 1 || rel.Entries[0].Class != wirechanges.ClassAdditive {
@@ -335,11 +279,6 @@ func TestTheLedgerAsItStandsTodayDerivesAMinor(t *testing.T) {
 	}
 }
 
-// The tool never tags and never pushes, and that is checked in the source rather
-// than trusted: every printed `git tag` line is a string for a human, so a
-// future edit that turns one into a call would read almost identically in review.
-// Bundled git is the only git this repo may run (git.TestNoBareGitShellouts), so
-// the check is on git.Run/git.Cmd.Run, which are the only ways to run one.
 func TestTheDerivationRunsNoWritingGitCommand(t *testing.T) {
 	for _, name := range []string{"nextversion.go", "render.go", "../../cmd/clubnextversion/main.go"} {
 		body, err := os.ReadFile(name)
@@ -355,9 +294,6 @@ func TestTheDerivationRunsNoWritingGitCommand(t *testing.T) {
 	}
 }
 
-// The make targets exist and run this tool. The plan's deliverable is
-// `make next-version`, not a package — and a target nobody wired is a tool
-// nobody finds.
 func TestTheMakeTargetsAreWired(t *testing.T) {
 	body, err := os.ReadFile(filepath.Join(repoRoot, "Makefile"))
 	if err != nil {
@@ -375,8 +311,6 @@ func TestTheMakeTargetsAreWired(t *testing.T) {
 	}
 }
 
-// The CHANGELOG the consume step writes into exists, and says what it is. Every
-// error and README in this machinery points at it by name.
 func TestTheChangelogExists(t *testing.T) {
 	body, err := os.ReadFile(filepath.Join(repoRoot, nextversion.ChangelogPath))
 	if err != nil {
@@ -417,8 +351,6 @@ func copyFixture(t *testing.T, name string) string {
 	return dst
 }
 
-// snapshotTree renders every file's path and contents, so "wrote nothing" is
-// checked as the tree being identical rather than as mtimes being close.
 func snapshotTree(t *testing.T, root string) string {
 	t.Helper()
 	var b strings.Builder
@@ -484,19 +416,6 @@ func itoa(n int) string {
 	return string(d)
 }
 
-// THE CROSS-REPO HANDOFF (plan 49 step 4). A breaking entry's `floor:` is the
-// oldest client that still works, and what finally ENFORCES it is
-// service.ClientVersionFloor — a constant in the private services repo, which
-// bumps its `require github.com/nwylynko/clubhouse-cli` pin and then has to
-// discover which floors that pin dragged in. The pending ledger cannot tell it:
-// entries are consumed at tag time, so by the time a version is pinnable its
-// entries are gone.
-//
-// CHANGELOG.md is what survives, so the floor is printed INTO it — verbatim,
-// next to the sentence it belongs to. Drop the floor from the rendering and the
-// pin-time pairing has nothing to read: the services repo bumps its pin, the
-// deployment accepts clients the changelog says are refused, and they fail
-// mid-session on a garbled decode instead of on a sentence.
 func TestTheChangelogPrintsTheFloorABreakingEntryNamed(t *testing.T) {
 	rel := loadFixture(t, "ledger-mixed", "v0.1.0")
 	block := nextversion.ChangelogBlock(rel.Next, rel.Entries)
@@ -504,8 +423,6 @@ func TestTheChangelogPrintsTheFloorABreakingEntryNamed(t *testing.T) {
 	if !strings.Contains(block, "floor v1.4.0") {
 		t.Fatalf("the changelog block does not carry the breaking entry's floor:\n%s", block)
 	}
-	// On the breaking bullet and nowhere else — an additive entry has no floor
-	// to name, and a line that invented one would be pinned against.
 	for _, line := range strings.Split(block, "\n") {
 		if strings.Contains(line, "floor ") && !strings.Contains(line, "no longer reads overlayAddr") {
 			t.Errorf("a non-breaking line carries a floor: %q", line)
@@ -513,11 +430,6 @@ func TestTheChangelogPrintsTheFloorABreakingEntryNamed(t *testing.T) {
 	}
 }
 
-// requireBundledGit resolves the bundled git binary or fails naming the fix.
-// Inlined rather than imported: the monorepo's internal/git/gittest is across
-// the repo line, and a public test may import nothing outside this module (plan
-// 49 step 4). An absent binary is a FAILURE and never a skip — `make test` here
-// depends on `fetch-git`, so absent means the fetch silently failed.
 func requireBundledGit(t *testing.T) {
 	t.Helper()
 	if _, err := git.Bin(); err != nil {

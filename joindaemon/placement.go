@@ -26,10 +26,6 @@ import (
 	"github.com/nwylynko/clubhouse-cli/sessionnet"
 )
 
-// newPlacementLoop builds this client's half of automatic placement (plan 30).
-// Every joined member runs one, which is what makes "the device that created
-// the session is not special" true: when the creator goes away its leases
-// expire, and whichever survivor ranks first simply takes them.
 func (j *Joined) newPlacementLoop() *placement.Loop {
 	return &placement.Loop{
 		Control:  j.Control,
@@ -40,9 +36,6 @@ func (j *Joined) newPlacementLoop() *placement.Loop {
 		Start:    j.startService,
 		Stop:     j.stopService,
 		Serves: func(service string) bool {
-			// A process already conducting in the foreground holds the lease for
-			// that fleet (Options.ConductsHere) and must never start a second one
-			// here — including on the resume path, after a lost lease.
 			return !(service == controlplane.ServiceConductor && j.conductsElsewhereInThisProcess)
 		},
 		OnChange: func(service, detail string) {
@@ -51,9 +44,6 @@ func (j *Joined) newPlacementLoop() *placement.Loop {
 	}
 }
 
-// startService brings one service up on this client. The machinery is the
-// existing machinery — canonical + gitserver, devserver.Supervisor, the
-// conductor fleet — this only decides which of it runs here.
 func (j *Joined) startService(ctx context.Context, service string) error {
 	switch service {
 	case controlplane.ServiceGit:
@@ -71,10 +61,6 @@ func (j *Joined) stopService(_ context.Context, service string) error {
 	defer j.mu.Unlock()
 	switch service {
 	case controlplane.ServiceDev:
-		// The relay registration goes with the lease, before the process: a
-		// holder still registered for a service this member no longer runs is
-		// the same lie as a held lease for a service it does not serve, and it
-		// locks the next owner out ("first live holder wins").
 		if j.devHolder != nil {
 			_ = j.devHolder.Close()
 			j.devHolder = nil
@@ -85,18 +71,12 @@ func (j *Joined) stopService(_ context.Context, service string) error {
 			j.dev = nil
 		}
 	case controlplane.ServiceConductor:
-		// Close the held /logs follower with the fleet: a lease handed back and
-		// reclaimed would otherwise leave one connection per election alive.
 		if j.fleetLogs != nil {
 			j.fleetLogs.Close()
 			j.fleetLogs = nil
 		}
 		j.fleet, j.publisher, j.refreshGate = nil, nil, nil
 	case controlplane.ServiceGit:
-		// Canonical bytes stay on disk — they are the session's local copy —
-		// but the session-network registration must go with the lease. Leaving
-		// it up would make the relay refuse the next owner's register
-		// (abuse-surface ticket 15).
 		if j.canonical != nil && j.canonical.Srv != nil {
 			j.canonical.Srv.UnpublishSession()
 		}
@@ -105,9 +85,6 @@ func (j *Joined) stopService(_ context.Context, service string) error {
 	return nil
 }
 
-// promoteToCanonical turns this client's mirror into the session's canonical
-// and serves it. This is plan 16's reconstruction, reached automatically by a
-// lease expiring instead of by a human running a migration.
 func (j *Joined) promoteToCanonical(ctx context.Context) error {
 	j.mu.Lock()
 	already := j.canonical
@@ -116,10 +93,6 @@ func (j *Joined) promoteToCanonical(ctx context.Context) error {
 		return nil
 	}
 	profile := detect.Probe()
-	// On the session network, or not at all: the address this member publishes
-	// is read by machines on other networks, so it has to name the session's
-	// git ROLE (club://…) — the same registration the host it replaces held.
-	// A session with no relay keeps the direct address, as before.
 	sessNet, err := j.sessionNetFor(ctx, "git")
 	if err != nil {
 		return fmt.Errorf("promote mirror to canonical: %w", err)
@@ -151,10 +124,6 @@ func (j *Joined) promoteToCanonical(ctx context.Context) error {
 	return nil
 }
 
-// sessionNetFor is the join daemon's half of what hoststart.sessionNetFor is
-// for the host: the session-network registration a service this member takes
-// over must hold. nil, nil when the control plane names no relay — a
-// same-machine session, where the direct address is the address.
 func (j *Joined) sessionNetFor(ctx context.Context, service string) (*gitserver.SessionNet, error) {
 	sess, err := j.Control.Session(ctx, j.Session.PIN)
 	if err != nil {
@@ -178,9 +147,6 @@ func (j *Joined) sessionNetFor(ctx context.Context, service string) (*gitserver.
 	}, nil
 }
 
-// startDev supervises the project's own dev command (plan 29's run.json) — the
-// reason dev failover is possible at all: the command belongs to the session,
-// not to the machine that happened to type it.
 func (j *Joined) startDev(ctx context.Context) error {
 	work := j.Paths.Work
 	j.mu.Lock()
@@ -203,19 +169,9 @@ func (j *Joined) startDev(ctx context.Context) error {
 		}
 	}
 	sup := &devserver.Supervisor{WorkDir: work, Command: dev, Logs: logs}
-	// The process outlives this call: it rides the dev LEASE (stopService) or
-	// the daemon (Close), never the caller's context. That context is the
-	// mirror loop's 30s tick, and a supervisor started on it was killed at the
-	// end of the cycle that started it — restarted on the next, killed again.
 	if err := sup.Start(context.WithoutCancel(ctx)); err != nil {
 		return err
 	}
-	// Publish it the way the host publishes its own: a holder on the session
-	// network for the dev service, and the dev/demo endpoints announced once
-	// something is listening on the constant port (ticket 21). Without both,
-	// the control plane keeps whatever the previous owner published — for
-	// session wioqg5 that was the departed box's club://…/dev, so every dial
-	// answered no-holder while this member held the lease and ran the process.
 	sess, err := j.Control.Session(ctx, j.Session.PIN)
 	if err != nil {
 		_ = sup.Stop()
@@ -245,8 +201,6 @@ func (j *Joined) startDev(ctx context.Context) error {
 		}
 		h, err := devserver.StartHolder(context.WithoutCancel(ctx), opt)
 		if err != nil {
-			// A refused registration is the failure, not a degraded mode: the
-			// lease goes back so a member that can publish takes it.
 			_ = sup.Stop()
 			return fmt.Errorf("start dev: %w", err)
 		}
@@ -261,13 +215,6 @@ func (j *Joined) startDev(ctx context.Context) error {
 	return nil
 }
 
-// keepDevPublished is the dev owner's per-cycle duty, the same two things the
-// host loop does for its dev server (hoststart.KeepDevAlive): re-announce the
-// endpoint while the process is alive — publication waits for something to be
-// listening, and a cold start becomes listening after the first tick — and
-// restart a process that exited. Announced at the session's CURRENT
-// generation: this member's own git takeover bumps it, and an announcement at
-// the old one is rejected.
 func (j *Joined) keepDevPublished(ctx context.Context) {
 	j.mu.Lock()
 	sup, rt := j.dev, j.devRuntime
@@ -293,20 +240,12 @@ func (j *Joined) keepDevPublished(ctx context.Context) {
 	rt.AnnounceDev(ctx)
 }
 
-// startConductor runs the fleet against whatever canonical the session
-// currently has — locally if we also hold git, over the network otherwise. The
-// harness login never moves; the work comes to the login (§10).
 func (j *Joined) startConductor(ctx context.Context) error {
 	j.mu.Lock()
 	host := j.canonical
 	j.mu.Unlock()
 
 	if host == nil {
-		// The reason this returns rides the lease back to the control plane
-		// (placement.take → ReportStartFailure) and is rendered verbatim by the
-		// console, `club monitor` and placement.Describe — so it is the same
-		// sentence `club conductor` prints in a terminal, built around the
-		// address the session publishes rather than the forwarder git dialled.
 		published := j.publishedGitEndpoint(ctx)
 		url, _, err := j.Control.GitURL(ctx, j.Session.PIN)
 		if err != nil {
@@ -317,16 +256,11 @@ func (j *Joined) startConductor(ctx context.Context) error {
 			return canonical.ExplainRemoteOpenFailure(j.Session.PIN, published, err)
 		}
 	}
-	// The session's own composition decides the agents, not this machine's
-	// default: taking the conductor lease over must reproduce the fleet the
-	// session elected. This machine's harness only fills roles nobody named.
 	built := conductor.BuildSessionFleet(ctx, conductor.SessionFleetSpec{
 		Host: host, ID: sbGit.SessionIdentity("conductor", j.Session.PIN),
 		Control: j.Control, PIN: j.Session.PIN, Fallback: harness.FirstAvailable(),
 	})
 	if !built.HasIntelligence() {
-		// Hand the lease straight back so a member that CAN conduct takes it,
-		// rather than holding a conductor that resolves nothing.
 		return fmt.Errorf("no harness CLI on this machine for any role the session named")
 	}
 	j.mu.Lock()
@@ -336,9 +270,6 @@ func (j *Joined) startConductor(ctx context.Context) error {
 	return nil
 }
 
-// publishedGitEndpoint is the session's git address as the session carries it,
-// "" when the control plane cannot be asked. Only messages use it: what a
-// member dials is always the Dialable form.
 func (j *Joined) publishedGitEndpoint(ctx context.Context) string {
 	sess, err := j.Control.Session(ctx, j.Session.PIN)
 	if err != nil {
@@ -348,19 +279,6 @@ func (j *Joined) publishedGitEndpoint(ctx context.Context) string {
 	return sess.Endpoints[controlplane.EndpointGit].URL
 }
 
-// fleetLoop ticks the conductor fleet, on its own goroutine and its own
-// context. Both halves of that matter and neither is incidental:
-//
-// The context carries NO deadline. The mirror loop's does — 30s, so a hung git
-// fetch cannot wedge the heartbeat — and the fleet used to tick inside it,
-// which killed every scaffold at exactly 30 seconds (`signal: killed`) when a
-// create-next-app run takes 30–90. Roles bound their own work instead: setup
-// gives one scaffold the fixed setupTimeout (10m), which is the bound
-// that actually knows what it is bounding.
-//
-// The goroutine is what makes that safe. A 10-minute scaffold on the mirror
-// loop would stall the 2s heartbeat and this member would look offline to the
-// session — losing the very leases it is mid-way through serving.
 func (j *Joined) fleetLoop() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -368,9 +286,6 @@ func (j *Joined) fleetLoop() {
 		<-j.stop
 		cancel()
 	}()
-	// Role state samples BESIDE the tick rather than inside it. A tick that
-	// blocks for a 40-second AI resolve is exactly the one whose state has to
-	// reach every other member's dashboard (plan 36 §2).
 	go j.publishRoleState(ctx)
 	t := time.NewTicker(2 * time.Second)
 	defer t.Stop()
@@ -379,16 +294,11 @@ func (j *Joined) fleetLoop() {
 		case <-j.stop:
 			return
 		case <-t.C:
-			// Serial by construction: one tick finishes before the next starts, so
-			// two scaffolds can never run against the same tree.
 			j.tickFleet(ctx)
 		}
 	}
 }
 
-// publishRoleState samples whatever fleet this member currently conducts. It
-// reads the publisher every tick rather than capturing it, because the
-// conductor lease can arrive (or leave) long after this loop starts.
 func (j *Joined) publishRoleState(ctx context.Context) {
 	t := time.NewTicker(conductor.StatePublishInterval)
 	defer t.Stop()
@@ -405,7 +315,6 @@ func (j *Joined) publishRoleState(ctx context.Context) {
 	}
 }
 
-// tickFleet runs one conductor round when this member holds that lease.
 func (j *Joined) tickFleet(ctx context.Context) {
 	j.mu.Lock()
 	fleet, host := j.fleet, j.fleetHost
@@ -413,9 +322,6 @@ func (j *Joined) tickFleet(ctx context.Context) {
 	if fleet == nil {
 		return
 	}
-	// The fleet ticks every 2s for local git work; only the network half is
-	// gated on a pushed frame plus a floor (plan 43). A local host's Refresh is
-	// a no-op, so the gate lets it through unchanged.
 	if host != nil {
 		j.mu.Lock()
 		if j.refreshGate == nil {
@@ -427,9 +333,6 @@ func (j *Joined) tickFleet(ctx context.Context) {
 			_ = host.Refresh(ctx)
 		}
 	}
-	// TickRoles starts the roles and returns: this is a loop, so a role that is
-	// still running from the last round is caught by the next one, and a
-	// minutes-long setup scaffold never holds up the merger behind it.
 	if err := fleet.TickRoles(ctx); err != nil {
 		j.log.Warnf("conductor tick: %v", err)
 	}

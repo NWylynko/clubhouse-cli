@@ -12,7 +12,6 @@ import (
 	"github.com/nwylynko/clubhouse-cli/sessionnet"
 )
 
-// Client runs commands on the session's box over the session network.
 type Client struct {
 	Dialer *sessionnet.Dialer
 }
@@ -28,7 +27,6 @@ func (c *connWriter) writeMsg(typ byte, body []byte) error {
 	return writeMsg(c.Conn, typ, body)
 }
 
-// Run executes argv in the box work tree, streaming stdio until exit.
 func (c *Client) Run(ctx context.Context, argv []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
 	if c == nil || c.Dialer == nil {
 		return -1, errors.New("boxexec: no dialer")
@@ -120,12 +118,10 @@ func (c *Client) Run(ctx context.Context, argv []string, stdin io.Reader, stdout
 	return 0, nil
 }
 
-// ExitError carries a remote command's non-zero exit status.
 type ExitError struct{ Code int }
 
 func (e *ExitError) Error() string { return fmt.Sprintf("command exited with status %d", e.Code) }
 
-// RunMain is Run with stdin nil and os stdout/stderr.
 func (c *Client) RunMain(ctx context.Context, argv []string) (int, error) {
 	code, err := c.Run(ctx, argv, nil, os.Stdout, os.Stderr)
 	if err != nil {
@@ -137,7 +133,6 @@ func (c *Client) RunMain(ctx context.Context, argv []string) (int, error) {
 	return 0, nil
 }
 
-// Shutdown asks the live box to stop hosting and exit.
 func (c *Client) Shutdown(ctx context.Context) error {
 	if c == nil || c.Dialer == nil {
 		return errors.New("boxexec: no dialer")

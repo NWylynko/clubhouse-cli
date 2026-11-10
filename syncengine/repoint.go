@@ -16,15 +16,11 @@ var repointLog = logx.New("repoint")
 
 const prevRemote = "origin-prev"
 
-// Cursors is the small on-disk cache under sessions/<pin>/cursors.json.
-// Endpoint is the last DialAddr we successfully followed (or confirmed).
-// Generation is the control-plane host generation last observed (plan 24).
 type Cursors struct {
 	Endpoint   string `json:"endpoint,omitempty"`
 	Generation int    `json:"generation,omitempty"`
 }
 
-// OriginURL returns the configured URL for remote "origin" in repo.
 func OriginURL(ctx context.Context, repo string) (string, error) {
 	out, err := sbGit.Output(ctx, repo, "remote", "get-url", "origin")
 	if err != nil {
@@ -33,12 +29,8 @@ func OriginURL(ctx context.Context, repo string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
-// Repoint retargets origin on the work tree and (when set) the bare mirror to
-// newRemote. Verifies the new endpoint with ls-remote before committing; on
-// failure leaves origin untouched. Stashes the prior URL as origin-prev for
-// rollback inspection. Idempotent when origin already equals newRemote.
 func Repoint(ctx context.Context, work, mirror, newRemote string, id sbGit.Identity) error {
-	_ = id // reserved for future authenticated remotes
+	_ = id
 	if newRemote == "" {
 		return fmt.Errorf("repoint: empty remote")
 	}
@@ -49,7 +41,6 @@ func Repoint(ctx context.Context, work, mirror, newRemote string, id sbGit.Ident
 	if urlsEqual(cur, newRemote) {
 		return nil
 	}
-	// Probe before rewriting — a dead/hostile endpoint must not break the client.
 	if err := sbGit.Run(ctx, "", "ls-remote", newRemote); err != nil {
 		return fmt.Errorf("repoint: new endpoint unreachable, leaving origin at %s: %w", cur, err)
 	}
@@ -59,7 +50,6 @@ func Repoint(ctx context.Context, work, mirror, newRemote string, id sbGit.Ident
 	if mirror != "" {
 		mcur, _ := OriginURL(ctx, mirror)
 		if err := setOrigin(ctx, mirror, mcur, newRemote); err != nil {
-			// Roll work back so the pair stays consistent.
 			_ = sbGit.Run(ctx, work, "remote", "set-url", "origin", cur)
 			return fmt.Errorf("repoint mirror: %w", err)
 		}
@@ -76,21 +66,12 @@ func setOrigin(ctx context.Context, repo, prev, next string) error {
 	return sbGit.Run(ctx, repo, "remote", "set-url", "origin", next)
 }
 
-// FollowOpts configures FollowHost — auto-repoint from the control plane.
 type FollowOpts struct {
 	Work, Mirror, PIN, Cursors string
-	// Resolve must come from the trusted control plane for this PIN. A raw
-	// DialAddr handed out-of-band must not be passed here (plan 22 trust note).
-	// Generation is the host generation at resolve time (0 if unknown).
-	Resolve func(ctx context.Context, pin string) (dialAddr string, generation int, err error)
-	ID      sbGit.Identity
+	Resolve                    func(ctx context.Context, pin string) (dialAddr string, generation int, err error)
+	ID                         sbGit.Identity
 }
 
-// FollowHost re-resolves the PIN and, when generation/URL moved, calls Repoint.
-// Generation is compared first (plan 24); URL second. Steady state costs one
-// resolve and no git traffic. Resolve failures never block — sync keeps using
-// the current origin. ls-remote failure during Repoint likewise leaves origin
-// alone and returns (false, nil).
 func FollowHost(ctx context.Context, opt FollowOpts) (repointed bool, err error) {
 	if opt.Resolve == nil || opt.PIN == "" {
 		return false, nil
@@ -118,8 +99,6 @@ func FollowHost(ctx context.Context, opt FollowOpts) (repointed bool, err error)
 	return repointed, nil
 }
 
-// CatchUp pushes main from fromURL into toURL so a relocated canonical picks up
-// post-seed merges before the rendezvous flip (plan 22 drain / catch-up).
 func CatchUp(ctx context.Context, fromURL, toURL string) error {
 	if fromURL == "" || toURL == "" {
 		return fmt.Errorf("catch-up: need both from and to URLs")
@@ -142,7 +121,6 @@ func CatchUp(ctx context.Context, fromURL, toURL string) error {
 	return nil
 }
 
-// LoadCursors reads cursors.json; missing file → zero value.
 func LoadCursors(path string) Cursors {
 	if path == "" {
 		return Cursors{}
@@ -156,7 +134,6 @@ func LoadCursors(path string) Cursors {
 	return c
 }
 
-// SaveCursors writes cursors.json, creating the parent dir.
 func SaveCursors(path string, c Cursors) error {
 	if path == "" {
 		return nil

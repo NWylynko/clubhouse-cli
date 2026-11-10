@@ -13,13 +13,8 @@ import (
 	"github.com/nwylynko/clubhouse-cli/harness"
 )
 
-// docFiles are repo docs the merger reads to understand the direction of
-// changes (§6.2) — plan/README/contract files, never code. The brief is in
-// there so conflicts get resolved with the project's actual direction in hand.
 var docFiles = []string{"README.md", "AGENTS.md", "CLAUDE.md", "MASTERPLAN.md", contracts.BriefFile}
 
-// mergerSystem is the merger role-agent's standing instruction (§6.2): bias
-// toward the incoming change, keep the tree runnable.
 const mergerSystem = `You are club's merger — one role-agent in a fleet that keeps many AI agents' code merged into one runnable product. You resolve a single git merge conflict.
 
 Rules:
@@ -28,17 +23,11 @@ Rules:
 - Keep the file syntactically valid and runnable.
 - Output ONLY the full resolved file contents. No commentary, no explanation, no markdown code fences.`
 
-// HarnessResolver returns a ConflictResolver backed by a harness CLI (or Fake).
-// A nil client yields a nil resolver (mechanical --theirs fallback).
 func HarnessResolver(c *harness.Client) ConflictResolver {
 	if c == nil {
 		return nil
 	}
 	return func(ctx context.Context, workDir, branch, intent string, conflicted []string) (map[string]string, error) {
-		// Run the CLI in the tree being merged, not wherever club was
-		// started from. Per-call rather than on the shared client: roles hold
-		// the same *harness.Client when the session falls back to this
-		// machine's agent, and they tick concurrently.
 		c := withDir(c, workDir)
 		docs := readDocs(workDir)
 		out := make(map[string]string, len(conflicted))
@@ -61,15 +50,11 @@ func HarnessResolver(c *harness.Client) ConflictResolver {
 	}
 }
 
-// fixSystem instructs the error-watcher role-agent to emit one machine-readable
-// fix patch for the runtime error it was shown.
 const fixSystem = `You are club's error-watcher — one role-agent in a fleet keeping the shared product runnable. The dev server logged a runtime or compile error. Given the error and the current source, produce the single smallest edit that fixes it.
 
 Respond with ONLY a JSON object, no markdown fences, no prose:
 {"path": "<repo-relative file to write>", "content": "<the full new contents of that file>"}`
 
-// HarnessFixer returns a Fixer backed by a harness CLI. Nil client → nil Fixer
-// (mechanical marker-file fallback).
 func HarnessFixer(c *harness.Client) Fixer {
 	if c == nil {
 		return nil
@@ -94,17 +79,11 @@ func HarnessFixer(c *harness.Client) Fixer {
 	}
 }
 
-// HarnessScaffolder returns a Scaffolder backed by an agentic harness run. A
-// nil client yields a nil Scaffolder, which disables the setup role — there is
-// no mechanical way to turn a sentence into a project, and a stub index.html
-// pretending to be one is worse than an empty repo with an honest log line.
 func HarnessScaffolder(c *harness.Client) Scaffolder {
 	if c == nil {
 		return nil
 	}
 	return func(ctx context.Context, dir, prompt string, onActivity func(string)) error {
-		// A copy per run: OnEvent closes over this call's activity sink, and the
-		// client is shared with whatever else the fleet built from it.
 		run := *c
 		if onActivity != nil {
 			run.OnEvent = func(e harness.Event) {
@@ -117,9 +96,6 @@ func HarnessScaffolder(c *harness.Client) Scaffolder {
 	}
 }
 
-// logWriter streams the agent's output into the fleet's log a line at a time.
-// A 90-second scaffold behind a buffered pipe is indistinguishable from a hang,
-// and on a cloud box this log is the only place anyone can watch it work.
 type logWriter struct{ partial string }
 
 func (w *logWriter) Write(p []byte) (int, error) {
@@ -137,8 +113,6 @@ func (w *logWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// withDir returns a shallow copy of c bound to dir, leaving the caller's client
-// untouched. Nil-safe so the mechanical-fallback path stays a plain nil check.
 func withDir(c *harness.Client, dir string) *harness.Client {
 	if c == nil || dir == "" {
 		return c

@@ -25,8 +25,6 @@ func (m *Model) pendingCount() int {
 	return n
 }
 
-// mergeAdmitted folds the present admitted list into the append-only roster.
-// Anyone who was active/offline and is gone is left; order never reshuffles.
 func (m *Model) mergeAdmitted(members []controlplane.Member) {
 	present := map[string]controlplane.Member{}
 	for _, mem := range members {
@@ -70,9 +68,6 @@ func admittedState(mem controlplane.Member) string {
 	return rosterOffline
 }
 
-// mergePending folds the knock queue. New requests append at the bottom;
-// a pending id that vanished without becoming admitted is marked declined so
-// the selection does not slide onto the next person.
 func (m *Model) mergePending(list []controlplane.Member) {
 	pending := map[string]controlplane.Member{}
 	for _, mem := range list {
@@ -111,7 +106,6 @@ func (m *Model) ensureSelection() {
 			}
 		}
 	}
-	// Prefer a pending knock — that is who is blocked on a decision.
 	for _, r := range m.roster {
 		if r.State == rosterPending {
 			m.selectedID = r.ID

@@ -1,35 +1,3 @@
-// Package wiresnapshot generates the golden snapshot of club's wire
-// surface — the shapes an already-installed copy of club can see (plan 48
-// step 1).
-//
-// THREE AND A HALF WIRES LIVE HERE, and the missing half is the point of where
-// this package sits. A guard belongs in the repo where the change it catches is
-// made (plan 49 step 4), and since the split the wire SOURCE is this module:
-//
-//   - the control-plane HTTP types and string vocabulary — every laptop, box
-//     and conductor decodes them;
-//   - the session-network framing — the wire two CLIENTS disagree about
-//     mid-splice, which no floor check can ever rescue (the relay never checks
-//     the control floor, deliberately: that is what keeps the grace hour alive);
-//   - the telemetry envelope, as posted to the ingest;
-//   - the relay ticket's claims — minted by the control worker, verified by the
-//     session worker, cached client-side for up to an hour, so a format change
-//     garbles three parties at once.
-//
-// The half that is NOT here is the control plane's ROUTE TABLE. It comes from
-// `server.RoutePatterns()`, which is service code and stayed in the private
-// services repo — so that repo keeps a routes-only golden of its own, red in
-// the repo that can turn it red. Adding or dropping a route is a change made
-// over there; moving one of these shapes is a change made here. Neither repo
-// can classify away the other's.
-//
-// The generator reads SOURCE, not reflection, for two reasons that both matter:
-// the framing constants it has to see are unexported (`maxRecord`), and a
-// reflection walk needs a hand-written list of types, which is a second list
-// that drifts — exactly what a new struct nobody classified would slip through.
-//
-// Output is deterministic: types and constants sorted by name; struct fields in
-// DECLARATION order, because for `relayticket` that order is literally the wire.
 package wiresnapshot
 
 import (
@@ -45,52 +13,30 @@ import (
 	"strings"
 )
 
-// SnapshotPath is the committed golden file, relative to the repo root.
 const SnapshotPath = "internal/wiresnapshot/wire-surface.txt"
 
-// RegenerateCommand is what an agent is told to run when the surface moves.
-// Named here so the tripwire's failure text and the README cannot print a
-// command that has been renamed.
 const RegenerateCommand = "make wire-snapshot"
 
-// constRule selects which exported constants of a package are wire.
 type constRule int
 
 const (
-	// constsNone — the package's constants are not part of its wire.
 	constsNone constRule = iota
-	// constsExportedStrings — the STRING constants only. In
-	// `internal/controlplane` the numbers are the deployment's own policy
-	// (limits, cadences, ceilings) and moving one is not a shape an old client
-	// decodes, while the strings are the vocabulary it hardcoded: endpoint
-	// kinds, roles, states, statuses, event names, header names.
 	constsExportedStrings
-	// constsExported — every exported constant. Used where the package IS a
-	// wire (sessionnet, relayticket) and a number is as load-bearing as a name.
 	constsExported
 )
 
-// typeRule selects which of a package's types are wire.
 type typeRule struct {
-	// jsonTagged takes every exported struct with at least one json-tagged
-	// field — so a NEW wire struct is caught without anybody listing it.
 	jsonTagged bool
-	// named takes exactly these types, whatever their shape. For the two wires
-	// that are not JSON: a hand-encoded payload and a record layer.
-	named []string
+	named      []string
 }
 
-// wireSection is one wire's slice of the surface.
 type wireSection struct {
-	title string
-	why   []string
-	dir   string
-	rule  typeRule
-	// constFiles names files whose package-level constants are all captured,
-	// exported or not — the framing block is unexported and is the whole point.
+	title      string
+	why        []string
+	dir        string
+	rule       typeRule
 	constFiles []string
-	// consts selects which of the package's exported constants are wire.
-	consts constRule
+	consts     constRule
 }
 
 var wireSections = []wireSection{
@@ -150,7 +96,6 @@ var wireSections = []wireSection{
 	},
 }
 
-// GenerateWireSurface renders the whole surface from the tree at root.
 func GenerateWireSurface(root string) (string, error) {
 	var b strings.Builder
 	b.WriteString(header)
@@ -166,7 +111,6 @@ func GenerateWireSurface(root string) (string, error) {
 	return b.String(), nil
 }
 
-// LoadWireSurface reads the committed snapshot.
 func LoadWireSurface(root string) (string, error) {
 	data, err := os.ReadFile(filepath.Join(root, SnapshotPath))
 	if err != nil {
@@ -194,9 +138,6 @@ const header = `# club wire surface — GENERATED. Do not edit by hand.
 `
 
 func renderSection(b *strings.Builder, section wireSection, pkg *parsedPackage) error {
-	// A named type that vanished is a generator failure, loudly: silently
-	// shrinking the snapshot is how a wire stops being watched without anybody
-	// deciding that it should.
 	if missing := pkg.missingNamedTypes(section); len(missing) > 0 {
 		return fmt.Errorf("wiresnapshot: %s no longer declares %s — it was renamed or removed. "+
 			"Point wireSections at the type that replaced it, or drop the section if that wire is gone",
@@ -222,7 +163,7 @@ func renderSection(b *strings.Builder, section wireSection, pkg *parsedPackage) 
 			switch {
 			case f.tag != "":
 				fmt.Fprintf(b, "\t%s %s `%s`\n", f.name, f.typ, f.tag)
-			case f.name == f.typ: // embedded
+			case f.name == f.typ:
 				fmt.Fprintf(b, "\t%s\n", f.typ)
 			default:
 				fmt.Fprintf(b, "\t%s %s\n", f.name, f.typ)
@@ -245,9 +186,7 @@ type parsedType struct {
 
 type parsedConst struct {
 	name, value, file string
-	// isString marks a constant whose value is a string literal — the wire
-	// VOCABULARY (kinds, roles, states, header names) as opposed to policy.
-	isString bool
+	isString          bool
 }
 
 type parsedPackage struct {
@@ -256,9 +195,6 @@ type parsedPackage struct {
 	consts []parsedConst
 }
 
-// parsePackage reads every non-test .go file in dir. It deliberately does not
-// type-check: the snapshot is about declared shape, and a full load would drag
-// the whole dependency graph in for four packages' worth of struct fields.
 func parsePackage(dir string) (*parsedPackage, error) {
 	items, err := os.ReadDir(dir)
 	if err != nil {
@@ -338,7 +274,7 @@ func readType(ts *ast.TypeSpec) parsedType {
 			}
 		}
 		typ := types.ExprString(field.Type)
-		if len(field.Names) == 0 { // embedded
+		if len(field.Names) == 0 {
 			out.fields = append(out.fields, parsedField{name: typ, typ: typ, tag: tag})
 			continue
 		}
@@ -354,8 +290,6 @@ func readType(ts *ast.TypeSpec) parsedType {
 	return out
 }
 
-// jsonName is the wire name of a field, or "" when the field never reaches the
-// wire (no tag, `json:"-"`, or unexported).
 func jsonName(f parsedField) string {
 	if !ast.IsExported(f.name) {
 		return ""
@@ -374,8 +308,6 @@ func jsonName(f parsedField) string {
 	return name
 }
 
-// lookupTag is the struct-tag convention (reflect.StructTag.Lookup), reachable
-// here without a reflect.Type.
 func lookupTag(tag, key string) (string, bool) {
 	for _, part := range strings.Fields(tag) {
 		k, v, ok := strings.Cut(part, ":")
@@ -404,7 +336,6 @@ func (p *parsedPackage) selectTypes(section wireSection) []parsedType {
 			continue
 		}
 		if section.rule.jsonTagged {
-			// Only the fields that actually reach the wire.
 			var wire []parsedField
 			for _, f := range t.fields {
 				if jsonName(f) == "" {
@@ -420,8 +351,6 @@ func (p *parsedPackage) selectTypes(section wireSection) []parsedType {
 	return out
 }
 
-// missingNamedTypes reports named types a section asked for that the package no
-// longer declares — a rename that would otherwise shrink the snapshot silently.
 func (p *parsedPackage) missingNamedTypes(section wireSection) []string {
 	have := map[string]bool{}
 	for _, t := range p.types {

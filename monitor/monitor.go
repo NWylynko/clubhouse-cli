@@ -1,7 +1,3 @@
-// Package monitor gives a live, read-only view of a club session for
-// hands-on testing. Prefer the control-plane view (--json, one resolved PIN);
-// --local keeps the on-disk path for machines with session state but no
-// control-plane reachability.
 package monitor
 
 import (
@@ -21,7 +17,6 @@ import (
 	"github.com/nwylynko/clubhouse-cli/session"
 )
 
-// Status is one session's live snapshot.
 type Status struct {
 	PIN        string
 	Role       string
@@ -33,45 +28,16 @@ type Status struct {
 	Registered bool
 	GitURL     string
 	GitUp      bool
-	// GitPath is how this process most recently reached the git service —
-	// "direct <addr>" or "relay <addr>" (plan 38 step 4). A dual path whose
-	// choice you cannot see is the thing that wastes an hour on stage.
-	GitPath string
-	Remote  string
-	DevURL  string
-	DevUp   bool
-	Note    string
-	// Box is the session's managed box in one phrase — "ready (cloudflare)",
-	// "provisioning…", or "failed — <why>". Blank when the session has no box.
-	//
-	// The failure half is the reason this field exists: a box that dies on boot
-	// is a session missing the machine that was going to host it, and the only
-	// place that fact is written down is the box record. Session 2lmymb spent
-	// eight minutes with a dead box and every human-facing surface either
-	// silent or saying "provisioning…".
-	Box string
-	// Services is where each leased service currently runs (plan 30), keyed by
-	// service name. Once services can move on their own, "where is everything
-	// right now?" has to be a question with a one-glance answer.
-	Services map[string]string
-	// Members is the roster as the control plane knows it, carrying each
-	// member's RAW build version (plan 48 step 4). Populated only from the
-	// control plane — a laptop cannot know what its teammates are running.
-	Members []MemberLine
+	GitPath    string
+	Remote     string
+	DevURL     string
+	DevUp      bool
+	Note       string
+	Box        string
+	Services   map[string]string
+	Members    []MemberLine
 }
 
-// MemberLine is one member on the monitor's roster: who, in what role, running
-// which build.
-//
-// Version is deliberately raw and deliberately unjudged. The floor is a
-// constant compiled into the control plane, and a below-floor verdict rendered
-// here would be a SECOND copy of it — one that can disagree with the copy that
-// actually refuses, on a laptop that may be a release behind. The verdict lives
-// in `clubhouse-control admin versions`, which evaluates against its own
-// compiled-in floor. Blank means the member has never reported a version (a
-// binary from before the header, or one that has not called since); it renders
-// as a dash, never as an empty cell, because blank is "old or unknown" and an
-// empty cell reads as "fine".
 type MemberLine struct {
 	Name    string
 	Role    string
@@ -79,8 +45,6 @@ type MemberLine struct {
 	Online  bool
 }
 
-// Snapshot discovers every session under home and returns its status.
-// controlBase is the control-plane URL (empty → skip registration/git probes).
 func Snapshot(ctx context.Context, home, controlBase string) []Status {
 	pins := Discover(home)
 	out := make([]Status, 0, len(pins))
@@ -94,7 +58,6 @@ func Snapshot(ctx context.Context, home, controlBase string) []Status {
 	return out
 }
 
-// Discover lists the session PINs that have state under home/sessions.
 func Discover(home string) []string {
 	root := filepath.Join(home, "sessions")
 	ents, err := os.ReadDir(root)
@@ -158,20 +121,11 @@ func statusFor(ctx context.Context, home, pin string, client *controlplane.Clien
 			}
 			// raw endpoint ok: shown as published; the probe uses Dialable.
 			if ep, ok := sess.Endpoints[controlplane.EndpointGit]; ok {
-				// Show the published address — it is what the session actually
-				// advertises — but PROBE something dialable. A `club://` URL
-				// probed literally always reads as down, which would make the
-				// monitor call every healthy session-network host dead.
 				st.GitURL = ep.URL
 				git := reach.ProbeSessionService(ctx, client, sess, pin, reach.ServiceGit)
 				st.GitUp = git.Reachable
 				st.GitPath = git.Via
 			}
-			// Dev is the one endpoint a human OPENS, so the monitor shows the
-			// resolved address rather than the published one (plan 41) — a
-			// `club://` URL on screen is something nobody can click. git is the
-			// other way round: it is published for machines, and `origin` is
-			// resolved where it is used.
 			if devURL, err := client.EndpointURL(ctx, pin, controlplane.EndpointDev); err == nil && devURL != "" {
 				st.DevURL = devURL
 				st.DevUp = reach.ProbeSessionService(ctx, client, sess, pin, reach.ServiceDev).Reachable
@@ -266,11 +220,6 @@ func forPin(home, pin string) session.Paths {
 	}
 }
 
-// boxLine is the session's box in one phrase, or "" when it has none.
-//
-// The failure carries its reason: the whole point of asking the monitor about a
-// session whose box is not there is finding out what happened to it, and
-// "failed" on its own is the same silence with a label on it.
 func boxLine(b *controlplane.BoxFacts) string {
 	if b == nil || b.State == "" {
 		return ""

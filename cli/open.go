@@ -59,10 +59,6 @@ func resolveOpenPIN(cmd *cobra.Command, args []string) (string, error) {
 	errW := cmd.ErrOrStderr()
 	if len(args) == 1 {
 		pin := args[0]
-		// Check liveness BEFORE the metadata: a session still standing up has a
-		// live marker but has not saved session.json yet, and reporting "no
-		// local session" for one that a process on this machine is actively
-		// building is the lie this whole path exists to stop telling.
 		if err := awaitWorkTree(cmd, pin); err != nil {
 			return "", err
 		}
@@ -97,8 +93,6 @@ func resolveOpenPIN(cmd *cobra.Command, args []string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		// A session still standing up is on the menu — it is live, that is the
-		// point — so picking it has to wait exactly like the other two branches.
 		if err := awaitWorkTree(cmd, pin); err != nil {
 			return "", err
 		}
@@ -106,17 +100,6 @@ func resolveOpenPIN(cmd *cobra.Command, args []string) (string, error) {
 	}
 }
 
-// awaitWorkTree holds until pin's work tree is usable, and says so while it
-// waits. A session that is already up costs one file read and no message.
-//
-// This is the whole of TASK-13's answer, and it sits in resolveOpenPIN because
-// that is the single chokepoint every session-entering verb shares — open, cd,
-// workspace, claude and codex — so none of them can grow its own opinion about
-// what a half-built session is.
-//
-// Waiting, not reporting, is the deliberate choice: the alternative told a
-// human to run the same command again in a few seconds, and told an agent —
-// which cannot judge "a few seconds" — that the session did not exist.
 func awaitWorkTree(cmd *cobra.Command, pin string) error {
 	if !session.StandingUp(pin) {
 		return nil
@@ -137,13 +120,6 @@ func livePinSet() map[string]bool {
 	return m
 }
 
-// PickLiveSession is the menu `club open` shows when this machine holds
-// more than one live session, and the answer it accepts.
-//
-// Exported because it only ever runs on a terminal — resolveOpenPIN reaches it
-// behind an isCharDevice check on both stdin and stdout — so the one way to
-// drive it with a scripted answer is to call it, short of taking a pty
-// dependency for a menu.
 func PickLiveSession(cmd *cobra.Command, entries []session.LiveEntry) (string, error) {
 	errW := cmd.ErrOrStderr()
 	for i, e := range entries {
@@ -174,8 +150,6 @@ func pickerBranch(e session.LiveEntry) string {
 	return "-"
 }
 
-// alreadyInSessionWork is true when dir sits inside this session's work tree.
-// pinFromCwd reuses the same sessions-layout logic as sync/push/pull.
 func alreadyInSessionWork(pin, workPath, dir string) bool {
 	if pinFromCwd() != pin {
 		return false
@@ -200,7 +174,6 @@ func openTTY(cmd *cobra.Command) bool {
 	return isCharDevice(in) && isCharDevice(out)
 }
 
-// spawnShell opens $SHELL in the session work tree.
 func spawnShell(cmd *cobra.Command, pin, workPath string) error {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
@@ -209,14 +182,6 @@ func spawnShell(cmd *cobra.Command, pin, workPath string) error {
 	return spawnInSessionWork(cmd, pin, workPath, shell, nil)
 }
 
-// spawnInSessionWork runs bin in the session work tree with `club` on PATH,
-// whatever the running binary is called on disk — an installed release is named
-// club-<os>-<arch>, and an agent told to run `club sync` in that
-// subshell has to find something.
-//
-// It is what both doors into a session share: `open`'s subshell and the
-// `club claude` / `club codex` verbs, which are the same act with the
-// agent CLI in the shell's place.
 func spawnInSessionWork(cmd *cobra.Command, pin, workPath, bin string, args []string) error {
 	env := append(os.Environ(), "CLUB_PIN="+pin)
 	exe, err := os.Executable()

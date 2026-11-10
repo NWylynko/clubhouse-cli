@@ -8,13 +8,6 @@ import (
 	"github.com/nwylynko/clubhouse-cli/internal/wirechanges"
 )
 
-// RenderNextVersion writes the page Nick reads at tag time.
-//
-// Every command on it is a command for a HUMAN to run — the same constraint the
-// deploy checklist is printed under. The page shows the changelog block FIRST
-// and the sequence second, because the block is the part worth arguing with: if
-// a sentence reads wrong here, the fix is to edit the entry and re-run, not to
-// fix it up in CHANGELOG.md afterwards where nothing keeps it honest.
 func RenderNextVersion(w io.Writer, rel Release) error {
 	p := func(format string, a ...any) { fmt.Fprintf(w, format+"\n", a...) }
 
@@ -70,7 +63,6 @@ func RenderNextVersion(w io.Writer, rel Release) error {
 	return nil
 }
 
-// pendingSummary counts the ledger by class, in bump order.
 func pendingSummary(entries []wirechanges.Entry) string {
 	if len(entries) == 0 {
 		return "nothing"
@@ -88,9 +80,6 @@ func pendingSummary(entries []wirechanges.Entry) string {
 	return fmt.Sprintf("%d %s — %s", len(entries), noun, strings.Join(parts, ", "))
 }
 
-// whyLines explains the bump in the ledger's own terms — two lines, wrapped to
-// the column the table sets. The rule nobody remembers is the empty one, so the
-// empty case says the whole reason out loud.
 func whyLines(entries []wirechanges.Entry) (string, string) {
 	if len(entries) == 0 {
 		return "the ledger is empty — the wire did not move, and a release",

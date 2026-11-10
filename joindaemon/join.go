@@ -1,6 +1,3 @@
-// Package joindaemon is the long-running `club join` side: resolve PIN via
-// the control plane, clone canonical, keep a background-fresh main mirror
-// (plans/11 + 24).
 package joindaemon
 
 import (
@@ -31,82 +28,52 @@ import (
 	"github.com/nwylynko/clubhouse-cli/syncengine"
 )
 
-// Options for joining a session.
 type Options struct {
 	PIN     string
-	Name    string // client branch suffix
+	Name    string
 	Control *controlplane.Client
 
-	// ConductsHere says this process already conducts the session in the
-	// foreground — the `club dev` wizard, which scaffolds and then runs its
-	// own fleet. The daemon then adopts the conductor lease instead of racing
-	// for it, so the session still has exactly one conductor and this process
-	// does not stand a second fleet up beside its own.
 	ConductsHere bool
 }
 
-// Joined is a live client attachment.
 type Joined struct {
 	Session  session.Session
 	Paths    session.Paths
 	Remote   string
 	MemberID string
-	// Name is what this member is called in the session — the same string the
-	// work feed puts on "nick synced client/nick".
-	Name    string
-	Control *controlplane.Client
-	stop    chan struct{}
-	log     *logx.Logger
+	Name     string
+	Control  *controlplane.Client
+	stop     chan struct{}
+	log      *logx.Logger
 
-	// Placement is this member's half of automatic service placement (plan 30):
-	// it renews what this machine serves and claims what has fallen free. Every
-	// member runs one, which is what makes the creator leaving a non-event.
 	Placement *placement.Loop
 	Outbox    *controlplane.Outbox
 
-	// conductsElsewhereInThisProcess is Options.ConductsHere: the process runs
-	// its own foreground fleet, so this daemon holds the conductor lease for it
-	// but must never start one of its own.
 	conductsElsewhereInThisProcess bool
 
 	mu          sync.Mutex
-	canonical   *canonical.Host            // set once this member wins the git lease
-	dev         *devserver.Supervisor      // set once it wins dev
-	devHolder   *devserver.Holder          // its session-network publication, with the lease
-	devRuntime  *runtime.Reconciler        // announces the dev/demo endpoints once it listens
-	fleet       *conductor.Fleet           // set once it wins conductor
-	fleetHost   *canonical.Host            // what the fleet drives
-	publisher   *conductor.StatePublisher  // role state → control plane (plan 36 §2)
-	refreshGate *conductor.RefreshGate     // when the remote canonical is re-fetched
-	fleetLogs   *conductor.RemoteLogSource // the fleet's held /logs follower
-	devURL      string                     // local address for the session's dev server
+	canonical   *canonical.Host
+	dev         *devserver.Supervisor
+	devHolder   *devserver.Holder
+	devRuntime  *runtime.Reconciler
+	fleet       *conductor.Fleet
+	fleetHost   *canonical.Host
+	publisher   *conductor.StatePublisher
+	refreshGate *conductor.RefreshGate
+	fleetLogs   *conductor.RemoteLogSource
+	devURL      string
 
-	// upgradeRefusal is the sentence the control plane last refused this member
-	// with (plan 48): this binary is below its client-version floor. It is
-	// STATE and not an exit — a refused daemon keeps its mirror, its relay-side
-	// git sync and its member cycle, so the field exists to be read (log once,
-	// status) rather than to end anything.
 	upgradeRefusal string
 }
 
-// UpgradeRequired reports whether the control plane is refusing this member for
-// being too old. The daemon keeps running either way; this is what lets a
-// status surface say why the fleet view has stopped updating.
 func (j *Joined) UpgradeRequired() bool { return j.UpgradeRequiredReason() != "" }
 
-// UpgradeRequiredReason is the one sentence to show, or "" when nothing is
-// refusing this member.
 func (j *Joined) UpgradeRequiredReason() string {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.upgradeRefusal
 }
 
-// noteUpgradeRequired records the refusal and logs it ONCE. Once because the
-// member cycle keeps its normal cadence — the retries are pointless while the
-// binary is what it is, and are kept anyway so a rollback that lowers the floor
-// self-heals without a restart — and a per-cycle warning would bury the session
-// log in the same sentence every five seconds.
 func (j *Joined) noteUpgradeRequired(sentence string) {
 	j.mu.Lock()
 	first := j.upgradeRefusal == ""
@@ -117,8 +84,6 @@ func (j *Joined) noteUpgradeRequired(sentence string) {
 	}
 }
 
-// clearUpgradeRequired forgets the refusal after a cycle succeeds, which is what
-// a rollback lowering the floor looks like from here.
 func (j *Joined) clearUpgradeRequired() {
 	j.mu.Lock()
 	had := j.upgradeRefusal != ""
@@ -129,7 +94,6 @@ func (j *Joined) clearUpgradeRequired() {
 	}
 }
 
-// hostnameOr is the machine name published with a lease claim.
 func hostnameOr(def string) string {
 	if h, err := os.Hostname(); err == nil && h != "" {
 		return h
@@ -137,16 +101,10 @@ func hostnameOr(def string) string {
 	return def
 }
 
-// Join resolves the PIN via the control plane, clones work + mirror (or resumes
-// them, if this machine has joined before), registers as a member, and starts a
-// background mirror + event loop.
 func Join(ctx context.Context, opt Options) (*Joined, error) {
 	if err := controlplane.ValidatePIN(opt.PIN); err != nil {
 		return nil, err
 	}
-	// Before anything else, because the resume path below makes a second daemon
-	// on one session directory *plausible* rather than merely broken: two of them
-	// would drive the same mirror and heartbeat as two separate members.
 	if err := noDaemonRunningHere(opt.PIN); err != nil {
 		return nil, err
 	}
@@ -159,16 +117,6 @@ func Join(ctx context.Context, opt Options) (*Joined, error) {
 		}
 	}
 	log := logx.New("join")
-	// Claim the session directory before the control plane is even dialled.
-	// resolveJoinSession is several round trips on a cold network, and a person
-	// who has just typed `club join` is entitled to type `club claude`
-	// straight after it — so the claim has to precede the slow part, not follow
-	// it. Everything from here to Ready is covered.
-	//
-	// It doubles as the honest version of noDaemonRunningHere above: until this
-	// existed there was no marker to check during standup at all, so two
-	// concurrent joins for one PIN raced into the same directory instead of the
-	// second being refused.
 	standup, err := session.BeginStandup(opt.PIN, session.RoleClient, "client/"+name)
 	if err != nil {
 		return nil, err
@@ -185,8 +133,6 @@ func Join(ctx context.Context, opt Options) (*Joined, error) {
 	}
 	gitURL := ""
 	// raw endpoint ok: read for the log line below and for unreachableHint, which
-	// is advice ABOUT what the host published. Everything that dials goes through
-	// Dialable first (see the comment there).
 	if ep, ok := sess.Endpoints[controlplane.EndpointGit]; ok {
 		gitURL = ep.URL
 	}
@@ -195,22 +141,11 @@ func Join(ctx context.Context, opt Options) (*Joined, error) {
 		return nil, fmt.Errorf("session %s has no git endpoint yet (host %s has not announced one)", opt.PIN, orUnknown(sess.HostMachine))
 	}
 	log.Infof("control plane ok — %s resolved: git=%s generation=%d host=%s", opt.PIN, gitURL, sess.Generation, orUnknown(sess.HostMachine))
-	// Everything below hands this URL to git, so it has to be a URL git can
-	// dial. On the session network the endpoint is `club://<pin>/git/…`, which
-	// names the session ROLE — correct to publish, meaningless to `git clone`.
-	// Dialable is the one place that knows the difference (it stands the
-	// loopback forwarder up); skipping it is how join died with "remote helper
-	// 'club' aborted session" while every published address looked right.
 	dialable, err := client.Dialable(ctx, sess, gitURL)
 	if err != nil {
 		return nil, fmt.Errorf("reach %s for session %s: %w", gitURL, opt.PIN, err)
 	}
 	gitURL = dialable
-	// On the PUBLISHED endpoint, never the dialable one. A `club://` endpoint
-	// always resolves to a loopback forwarder here — that is what Dialable is
-	// for — so reading the resolved address made this fire on every session-
-	// network join, one line after logging the correct club:// URL, telling the
-	// reader to restart a host that was configured properly.
 	if hint := unreachableHint(published, client.Base); hint != "" {
 		log.Warnf("%s", hint)
 	}
@@ -225,12 +160,6 @@ func Join(ctx context.Context, opt Options) (*Joined, error) {
 		return nil, jerr
 	}
 	if joined {
-		// A rejoin is the ordinary way back — a daemon that died, a laptop that
-		// slept, a machine that lost the network — and it is usually happening
-		// BECAUSE something moved, so following the current endpoint is the whole
-		// job. Cloning here would fail on the non-empty directory and the only way
-		// out was deleting the session, which discards every unpushed commit on
-		// this machine.
 		log.Infof("resuming the existing work tree at %s (branch %s)", paths.Work, branch)
 		if err := syncengine.Repoint(ctx, paths.Work, paths.Mirror, gitURL, id); err != nil {
 			return nil, fmt.Errorf("follow %s to its current git endpoint: %w%s", opt.PIN, err, diagnose(published))
@@ -258,19 +187,12 @@ func Join(ctx context.Context, opt Options) (*Joined, error) {
 	if err := meta.Save(); err != nil {
 		return nil, err
 	}
-	// The work tree, the contracts and the metadata are all on disk, so this is
-	// the instant it becomes openable — ahead of JoinMember, the held stream
-	// and the loops below, none of which a person sitting in the folder is
-	// waiting for. Every `club open`/`claude` blocked on this session wakes
-	// here.
 	if err := standup.Ready(meta); err != nil {
 		log.Warnf("could not mark %s ready: %v", opt.PIN, err)
 	}
 	_ = syncengine.SaveCursors(paths.Cursors, syncengine.Cursors{
 		Endpoint: gitURL, Generation: sess.Generation,
 	})
-	// Presence fields the redeem/claim did not know yet. Idempotent when the
-	// secret already identifies this name (invite and accept both land here).
 	if mid, err := client.JoinMember(ctx, opt.PIN, controlplane.MemberJoinRequest{
 		Name: name, Role: controlplane.RoleClient, Branch: branch, Machine: hostname,
 		Capability: controlplane.CapFromProfile(detect.Probe()),
@@ -290,21 +212,13 @@ func Join(ctx context.Context, opt Options) (*Joined, error) {
 	j.conductsElsewhereInThisProcess = opt.ConductsHere
 	j.Placement = j.newPlacementLoop()
 	if opt.ConductsHere {
-		// Adopt, do not race: this process is already the session's conductor, so
-		// the lease records that before the placement loop's first round. Without
-		// it the daemon claimed the lease two seconds later and stood a SECOND
-		// fleet up beside the foreground one — two setup roles scaffolding the
-		// same brief, with different agents.
 		if err := j.Placement.Adopt(ctx, controlplane.ServiceConductor); err != nil {
 			log.Warnf("could not record that this process conducts %s (%v) — another member may take the conductor", opt.PIN, err)
 		}
 	}
-	// Plan 43: hold the session stream; cancelled in Close.
 	j.Control.Watch(context.Background(), j.Session.PIN)
 	if j.MemberID != "" {
 		j.Outbox = controlplane.NewOutbox(j.Control, j.Session.PIN, j.MemberID)
-		// The fleet this daemon may take over — or the wizard's foreground one
-		// sharing this memoized client — publishes through the same cycle.
 		j.Control.RegisterOutbox(j.Session.PIN, j.Outbox)
 		if j.Placement != nil {
 			j.Placement.Outbox = j.Outbox
@@ -312,10 +226,6 @@ func Join(ctx context.Context, opt Options) (*Joined, error) {
 	}
 	go j.mirrorLoop()
 	go j.fleetLoop()
-	// No live marker written here any more: standup.Ready did it the moment the
-	// work tree was usable, several round trips ago. Rewriting it here would
-	// reset StartedAt and so throw away the one number that says how long this
-	// standup actually took.
 	log.Infof("mirror daemon running for %s (branch %s)", opt.PIN, branch)
 	return j, nil
 }
@@ -344,10 +254,6 @@ func (j *Joined) mirrorLoop() {
 					fetchNow = true
 				}
 				if e.Kind == "host.takeover" {
-					// A takeover freed every lease. Whatever this member was
-					// serving, it no longer holds — and the new host is
-					// waiting on the relay for our registration to go, so
-					// learn it now rather than on the next member cycle.
 					j.standDownWhatWasTaken()
 				}
 				if e.Kind == "host.cutover" {
@@ -414,12 +320,6 @@ func (j *Joined) mirrorLoop() {
 					j.Close()
 					return
 				}
-				// Deliberately NOT an exit path, and deliberately not a debug
-				// line either: a refused member keeps its mirror, its relay-side
-				// git sync and this very cadence (a rollback that lowers the
-				// floor self-heals without a restart), but it is the one member
-				// whose fleet view has silently stopped updating, so it is told
-				// once why (plan 48).
 				if errors.Is(err, controlplane.ErrUpgradeRequired) {
 					j.noteUpgradeRequired(err.Error())
 				} else if err != nil {
@@ -474,11 +374,6 @@ func (j *Joined) mirrorLoop() {
 	}
 }
 
-// standDownWhatWasTaken asks the control plane which of this member's leases
-// are no longer its own — one member sync, off-cycle — and stands those
-// services down. Called on host.takeover: the store deletes every lease with
-// the demotion, and the returning host cannot register on the relay while
-// this member's registration is still up.
 func (j *Joined) standDownWhatWasTaken() {
 	if j.Outbox == nil || j.Placement == nil {
 		return
@@ -503,40 +398,18 @@ func (j *Joined) standDownWhatWasTaken() {
 	j.Placement.ApplyLost(ctx, res.Lost)
 }
 
-// Fleet is the conductor fleet this member currently runs, or nil when it does
-// not conduct — either because it never took the conductor lease, or because it
-// holds the lease for a fleet running in the foreground of this process
-// (Options.ConductsHere).
-//
-// Exported because "what does this member conduct, and with which agent?" is a
-// question about the session rather than about this package's internals, and it
-// is the only place the answer exists: the role state published to the control
-// plane carries state and activity but not composition, so nothing outside can
-// tell a daemon that reproduced the session's elected fleet from one that
-// imposed this machine's default, or a daemon adopting a foreground lease from
-// one that stood a second fleet up beside it.
 func (j *Joined) Fleet() *conductor.Fleet {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.fleet
 }
 
-// DevURL is the local address this member opens the session's dev server on, or
-// "" until one exists.
 func (j *Joined) DevURL() string {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.devURL
 }
 
-// ensureDevForwarder stands the dev forwarder up as soon as the endpoint
-// exists, rather than when somebody goes looking for a URL (plan 41).
-//
-// Eager costs one relay connection per member for the session even if nobody
-// opens the page. That is accepted: lazy means the console can only show a URL
-// *after* you have gone looking for it, which is a politer version of the
-// failure this whole plan exists to fix. The local port is derived from the PIN,
-// so it survives this daemon restarting.
 func (j *Joined) ensureDevForwarder(ctx context.Context) {
 	j.mu.Lock()
 	have := j.devURL
@@ -551,18 +424,12 @@ func (j *Joined) ensureDevForwarder(ctx context.Context) {
 	j.mu.Lock()
 	j.devURL = url
 	j.mu.Unlock()
-	// Published so `club site` can report THIS forwarder. A separate CLI
-	// process resolving the endpoint itself would find this port taken, retry
-	// to the next derived one, and print a URL that closes when it exits.
 	if err := session.PublishDevURL(j.Session.PIN, url); err != nil {
 		j.log.Warnf("could not publish the dev URL for `club site`: %v", err)
 	}
 	j.log.Infof("dev server: %s", url)
 }
 
-// unreachableHint names the one failure a joiner cannot diagnose from git's own
-// error: the host published a loopback git URL, so "127.0.0.1" in the message
-// means the HOST's machine, not this one, and the port is simply closed here.
 func unreachableHint(gitURL, controlBase string) string {
 	if !netbind.LoopbackURL(gitURL) || netbind.LoopbackURL(controlBase) {
 		return ""
@@ -570,14 +437,6 @@ func unreachableHint(gitURL, controlBase string) string {
 	return fmt.Sprintf("the host published a loopback git endpoint (%s): that address means the host's OWN machine, so it is unreachable from here. The host must use a non-loopback control plane (so it publishes a routable direct address) or a session relay.", gitURL)
 }
 
-// diagnose annotates a clone failure, and reads the PUBLISHED endpoint for the
-// same reason unreachableHint does: on the session network the URL git was given
-// is club's own forwarder, and "the host published loopback" would be a
-// confident wrong answer. A refused connection to a published loopback
-// endpoint is ambiguous from here — either the host is on this machine and its
-// process is gone, or (the reported bug) the host is on another machine and
-// published an address that only means "itself". Name both, since git's
-// "Failed to connect to 127.0.0.1" reads like a local problem either way.
 func diagnose(gitURL string) string {
 	if !netbind.LoopbackURL(gitURL) {
 		return ""
@@ -593,17 +452,10 @@ func orUnknown(s string) string {
 	return s
 }
 
-// resolveJoinSession is how a joiner first sees the session document (plan 44
-// ticket 06). With a secret already on disk this is a GET (invite / rejoin).
-// Without one it is a single redeem — no GET before it — that holds until a
-// human decides and returns the session in the final frame.
 func resolveJoinSession(ctx context.Context, client *controlplane.Client, pin, name, machine string, log *logx.Logger) (controlplane.Session, string, error) {
 	if session.ReadMemberSecret(pin) != "" {
 		sess, err := client.Session(ctx, pin)
 		if err != nil {
-			// One sentence, unwrapped. Wrapping it would tell somebody whose
-			// club is simply old to go and check a PIN and a URL that are
-			// both fine (plan 48).
 			if errors.Is(err, controlplane.ErrUpgradeRequired) {
 				return controlplane.Session{}, "", controlplane.ErrUpgradeRequired
 			}
@@ -627,11 +479,6 @@ func resolveJoinSession(ctx context.Context, client *controlplane.Client, pin, n
 	}, func(p controlplane.RedeemPending) {
 		log.Infof("%s", admission.WaitLine(pin, p.Acceptors))
 	})
-	// The accept landed while we were away and the secret went with the control
-	// plane that minted it. The request id is spent: re-presenting it answers
-	// 409 forever, so retrying is not optional — without this the machine is
-	// locked out of the session permanently, holding a roster slot, with
-	// nothing telling anyone why.
 	if errors.Is(err, controlplane.ErrKnockSpent) {
 		log.Warnf("the earlier join request for %s was accepted while this machine was disconnected, "+
 			"and its secret was not delivered — knocking again, which needs one more accept", pin)
@@ -658,8 +505,6 @@ func resolveJoinSession(ctx context.Context, client *controlplane.Client, pin, n
 			return controlplane.Session{}, "", err
 		}
 		if errors.Is(err, controlplane.ErrNoSession) {
-			// Same server shape for a typo and an ended session — legibility is
-			// on the client that already has local state (plan 44 ticket 09).
 			if localSessionState(pin) {
 				return controlplane.Session{}, "", fmt.Errorf("this session has ended")
 			}
@@ -670,9 +515,6 @@ func resolveJoinSession(ctx context.Context, client *controlplane.Client, pin, n
 	return res.Session, res.MemberID, nil
 }
 
-// knockID returns this machine's persisted knock id, minting one when absent.
-// It is written before the redeem answers so a dropped connection re-attaches
-// to the same queue entry instead of queueing a second person.
 func knockID(pin string) (string, error) {
 	if id := session.ReadRequestID(pin); id != "" {
 		return id, nil
@@ -687,9 +529,6 @@ func knockID(pin string) (string, error) {
 	return id, nil
 }
 
-// localSessionState is true when this machine already belonged to the session —
-// secret, session.json, or a work/mirror repo. A request-id alone does not count:
-// knocking writes that before redeem answers (plan 44 ticket 09).
 func localSessionState(pin string) bool {
 	if session.ReadMemberSecret(pin) != "" {
 		return true
@@ -701,12 +540,6 @@ func localSessionState(pin string) bool {
 	return isRepo(p.Work) || isRepo(p.Mirror)
 }
 
-// alreadyJoinedHere reports whether this machine can resume rather than clone.
-// It insists on BOTH repos: the work tree is what holds unpushed commits, and
-// the mirror is what keeps a base to integrate against, so half a session is a
-// state to name rather than to guess at — an automatic re-clone of the missing
-// half would be the "never build a fallback nobody asked for" mistake, and on
-// the work-tree side it would delete somebody's work.
 func alreadyJoinedHere(pin string, paths session.Paths) (bool, error) {
 	work, mirror := isRepo(paths.Work), isRepo(paths.Mirror)
 	switch {
@@ -732,8 +565,6 @@ func isRepo(dir string) bool {
 	if dir == "" {
 		return false
 	}
-	// A work tree has .git as a directory; a bare mirror has HEAD + objects at
-	// its root. Checking for either keeps one helper honest about both.
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
 		return true
 	}
@@ -745,15 +576,6 @@ func isRepo(dir string) bool {
 	return false
 }
 
-// noDaemonRunningHere refuses a join when ANOTHER process on this machine is
-// already holding the session open. The marker is pid-checked, so a daemon that
-// was killed does not lock anybody out — that stale-marker case is exactly the
-// rejoin this exists to allow.
-//
-// The current process is exempt, and has to be: the wizard hosts and then joins
-// itself in one process (`joinSelf`, after `hoststart.Start` has already written
-// the marker), so treating our own pid as a competitor would refuse every
-// first run.
 func noDaemonRunningHere(pin string) error {
 	m, ok := session.LiveHere(pin)
 	if !ok || m.PID == os.Getpid() {
@@ -771,14 +593,11 @@ func shortSHA(s string) string {
 	return s
 }
 
-// Close stops the background mirror loop.
 func (j *Joined) Close() {
 	if j.Control != nil {
 		j.Control.CloseWatch(j.Session.PIN)
 		j.Control.UnregisterOutbox(j.Session.PIN)
 	}
-	// Hand back anything this member was serving before leaving, so the next
-	// owner takes over at once instead of waiting out a full lease TTL.
 	if j.Placement != nil {
 		j.Placement.ReleaseAll(context.Background())
 	}
@@ -790,11 +609,6 @@ func (j *Joined) Close() {
 	default:
 		close(j.stop)
 	}
-	// Then stop what the leases had this machine serving — the dev process and
-	// its holder, the git registration, the canonical's listener — exactly as
-	// hoststart.Close does for a host. ReleaseAll hands the LEASES back; it
-	// does not touch the processes behind them, and a dev server that outlives
-	// its daemon holds the constant port against the next owner.
 	for _, svc := range controlplane.Services {
 		_ = j.stopService(context.Background(), svc)
 	}
@@ -808,9 +622,6 @@ func (j *Joined) Close() {
 	_ = session.ClearLive(j.Session.PIN)
 }
 
-// mirrorHeight is how many commits this replica has on main — the comparable
-// half of "who holds the freshest replica?" (plan 30). Zero when it cannot be
-// read, which ranks the member last rather than failing the heartbeat.
 func mirrorHeight(ctx context.Context, mirror string) int {
 	out, err := sbGit.Output(ctx, mirror, "rev-list", "--count", "refs/heads/main")
 	if err != nil {
@@ -823,9 +634,6 @@ func mirrorHeight(ctx context.Context, mirror string) int {
 	return n
 }
 
-// localHarness reports which agent CLI this machine could conduct with — the
-// input that decides conductor eligibility. Empty means "not a candidate",
-// which is the honest answer rather than a session-wide downgrade.
 func localHarness() string {
 	if c := harness.FirstAvailable(); c != nil {
 		return string(c.Name)

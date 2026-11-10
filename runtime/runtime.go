@@ -1,5 +1,3 @@
-// Package runtime reconciles non-file runtime state as main advances (plans/20):
-// migrations against the live DB, shared ports/.env, gated reseed, and process restart.
 package runtime
 
 import (
@@ -22,14 +20,10 @@ import (
 	"github.com/nwylynko/clubhouse-cli/netbind"
 )
 
-// SharedEnvPath is the tracked shared runtime config. Host materializes .env from
-// it; clients agree via git (no silent host/client port divergence).
 const SharedEnvPath = ".club/runtime.env"
 
-// ReseedSignal in a push intent authorizes destructive reset/reseed. Never inferred.
 const ReseedSignal = "club:reseed"
 
-// Paths that count as "migration files" when they change on main.
 var migrationPrefixes = []string{
 	"migrations/",
 	"prisma/migrations/",
@@ -39,16 +33,14 @@ var migrationPrefixes = []string{
 	"db/migrate/",
 }
 
-// Options configure a one-shot Reconcile between two main tips.
 type Options struct {
 	WorkDir    string
-	MigrateCmd []string // override auto-detect
-	ReseedCmd  []string // override; empty = no-op even with signal
+	MigrateCmd []string
+	ReseedCmd  []string
 	Dev        *devserver.Supervisor
 	GitRun     func(ctx context.Context, dir string, args ...string) (string, error)
 }
 
-// Result is what Reconcile did for one main advance.
 type Result struct {
 	Migrated   bool
 	Reseeded   bool
@@ -56,28 +48,22 @@ type Result struct {
 	Restarted  bool
 }
 
-// Reconciler is a conductor After-role: on each Tick, if main advanced since the
-// last tick, apply runtime hooks (migrations / shared env / gated reseed) and
-// restart the supervised process when live state changed.
 type Reconciler struct {
 	WorkDir    string
 	MigrateCmd []string
 	ReseedCmd  []string
 	Dev        *devserver.Supervisor
 	GitRun     func(ctx context.Context, dir string, args ...string) (string, error)
-	// Control plane announcement (plan 24) — optional.
 	Control    *controlplane.Client
 	PIN        string
 	Generation int
 
-	mu       sync.Mutex
-	lastHEAD string
-	lastDev  string
-	// sessionDevURL / sessionDevDirect are what the dev holder publishes, when
-	// this member holds the dev lease and a relay is configured.
+	mu               sync.Mutex
+	lastHEAD         string
+	lastDev          string
 	sessionDevURL    string
 	sessionDevDirect string
-	saidWrongBind    bool // ticket 21: one diagnostic when running but not on DevPort
+	saidWrongBind    bool
 	Migrations       int
 	Reseeds          int
 	EnvApplies       int
@@ -86,7 +72,6 @@ type Reconciler struct {
 
 func (r *Reconciler) Name() string { return "runtime" }
 
-// Tick baselines on first call, then reconciles each subsequent main advance.
 func (r *Reconciler) Tick(ctx context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -111,9 +96,6 @@ func (r *Reconciler) Tick(ctx context.Context) error {
 		GitRun:     gitRun,
 	}, r.lastHEAD, head)
 	if err != nil {
-		// Don't advance past a failed range — retry it next tick so a transient
-		// migration/reseed failure recovers instead of being skipped forever.
-		// The failure is already in the dev log for the error-watcher.
 		return err
 	}
 	r.lastHEAD = head
@@ -122,8 +104,6 @@ func (r *Reconciler) Tick(ctx context.Context) error {
 	return nil
 }
 
-// ReconcileFromTo applies runtime hooks for an explicit old→new main range
-// (emulator / host loop after SyncWorkToMain). Updates lastHEAD.
 func (r *Reconciler) ReconcileFromTo(ctx context.Context, oldHEAD, newHEAD string) (*Result, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -147,42 +127,22 @@ func (r *Reconciler) ReconcileFromTo(ctx context.Context, oldHEAD, newHEAD strin
 		return res, err
 	}
 	r.account(res)
-	// The host loop drives this method rather than Tick, so announcing only there
-	// meant a live host never published its dev URL.
 	r.announceDev(ctx)
 	return res, nil
 }
 
-// DevURL is the dev endpoint most recently announced, or empty before something
-// is listening on LocalDevPort (ticket 21). The error-watcher's health probe
-// reads it so the probe and the endpoint everyone else dials can never disagree.
 func (r *Reconciler) DevURL() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.lastDev
 }
 
-// AnnounceDev publishes the dev/demo endpoints when something is listening on
-// LocalDevPort. Callers use it at startup and on every host tick so a cold
-// start becomes published once the process accepts connections — never via a
-// grace timer.
 func (r *Reconciler) AnnounceDev(ctx context.Context) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.announceDev(ctx)
 }
 
-// SetGeneration follows the host onto a new control-plane generation. Announcing
-// at the old one is rejected, so a Reconciler left behind by a cutover would go
-// quiet — no dev URL for the rest of the session.
-// SetSessionDev records the session address the dev holder publishes, and the
-// machine address peers may dial directly (plan 41). With one set, the dev
-// endpoint names the session's dev SERVICE instead of this machine — which is
-// what makes it openable from another network, and what keeps it true when the
-// dev lease migrates.
-//
-// With none set the endpoint stays byte-for-byte today's http://<host>:<port>:
-// the session network is not a new requirement for a same-machine session.
 func (r *Reconciler) SetSessionDev(url, direct string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -225,10 +185,6 @@ func (r *Reconciler) announceDev(ctx context.Context) {
 		return
 	}
 	log := logx.New("runtime")
-	// The same resolution the session-network dev holder uses, so the
-	// endpoint and the holder can never name different ports. There is no
-	// operator-asserted advertise override — the session (or loopback) is
-	// the only address path.
 	port, _ := LocalDevPort(r.WorkDir)
 	if port <= 0 {
 		return
@@ -238,9 +194,6 @@ func (r *Reconciler) announceDev(ctx context.Context) {
 		host = "127.0.0.1"
 	}
 	u := fmt.Sprintf("http://%s:%d", host, port)
-	// Publish only when something is LISTENING on the port we would announce.
-	// With a constant there is always a number; publishing on that alone makes
-	// every not-yet-booted server read as broken (ticket 21). No grace timer.
 	if !LocalPortListening(port) {
 		r.diagnoseWrongBind(log, port)
 		if r.lastDev != "" {
@@ -252,9 +205,6 @@ func (r *Reconciler) announceDev(ctx context.Context) {
 	}
 	r.saidWrongBind = false
 	r.lastDev = u
-	// The dev ENDPOINT is the session address when this member is publishing
-	// one; the DEMO endpoint deliberately stays the machine address, because it
-	// means "the URL an outsider gets" and that is plan 17's business.
 	devURL := u
 	if r.sessionDevURL != "" {
 		devURL = r.sessionDevURL
@@ -267,9 +217,6 @@ func (r *Reconciler) announceDev(ctx context.Context) {
 	})
 }
 
-// diagnoseWrongBind names a silent mismatch: the child is alive and its own
-// logs claim a different listen port. A cold start (alive, silent, not yet
-// listening) must not warn — that is "coming up", not broken.
 func (r *Reconciler) diagnoseWrongBind(log *logx.Logger, expect int) {
 	if r.saidWrongBind || r.Dev == nil || !r.Dev.Running() || r.Dev.Logs == nil {
 		return
@@ -283,9 +230,6 @@ func (r *Reconciler) diagnoseWrongBind(log *logx.Logger, expect int) {
 		"fix the framework config (Vite: server.port); the dev server must bind port %d", other, expect, expect)
 }
 
-// listenPortClaimedInLogs finds a localhost/127.0.0.1 listen URL in framework
-// startup lines whose port is not expect. Empty when the logs have not claimed
-// a port yet (cold start).
 func listenPortClaimedInLogs(logs string, expect int) int {
 	for _, line := range strings.Split(logs, "\n") {
 		lower := strings.ToLower(line)
@@ -318,23 +262,13 @@ func listenPortClaimedInLogs(logs string, expect int) int {
 	return 0
 }
 
-// DevPort is where the supervised dev process binds (abuse-surface ticket 21).
-// Alias of devserver.DefaultPort so callers outside that package name one constant.
 const DevPort = devserver.DefaultPort
 
-// LocalDevPort is the port the supervised dev process is listening on *on this
-// machine*, which is what the session-network dev holder splices into (plan 41).
-// Always the constant DevPort (ticket 09) — nothing published onto the docker
-// host, and no environment override. A committed PORT= in .club/runtime.env
-// never selects the splice target (ticket 21). workDir is kept so call sites
-// stay stable.
 func LocalDevPort(workDir string) (int, string) {
 	_ = workDir
 	return devserver.ResolveLocalPort()
 }
 
-// LocalPortListening reports whether something accepts TCP on 127.0.0.1:port.
-// Used to gate endpoint publication — not a grace timer.
 func LocalPortListening(port int) bool {
 	if port <= 0 {
 		return false
@@ -347,8 +281,6 @@ func LocalPortListening(port int) bool {
 	return true
 }
 
-// Reconcile applies migration / env / reseed hooks for files that changed
-// between oldHEAD and newHEAD. Restarts Dev when live state changed.
 func Reconcile(ctx context.Context, opt Options, oldHEAD, newHEAD string) (*Result, error) {
 	res := &Result{}
 	if opt.WorkDir == "" || oldHEAD == "" || newHEAD == "" || oldHEAD == newHEAD {
@@ -365,14 +297,6 @@ func Reconcile(ctx context.Context, opt Options, oldHEAD, newHEAD string) (*Resu
 
 	needRestart := false
 
-	// Migration strategy: club only *triggers* migration; ordering and
-	// idempotency are delegated to the stack's own migration tool (`prisma
-	// migrate deploy`, `manage.py migrate`, a project `migrate` script, …),
-	// which is designed to apply pending migrations in order and skip
-	// already-applied ones. club's job is "a migration file changed on
-	// main → run the tool once." A failure is surfaced to the dev-server log
-	// (below) so the error-watcher (plan 07) can self-heal it, rather than
-	// silently leaving the live DB out of sync with the schema.
 	if migrationChanged(changed) {
 		cmd := opt.MigrateCmd
 		if len(cmd) == 0 {
@@ -471,10 +395,6 @@ func reseedRequested(ctx context.Context, dir, oldH, newH string, gitRun func(co
 	return strings.Contains(out, ReseedSignal)
 }
 
-// materializeEnv writes the tracked shared runtime config to the host's .env.
-// Returns whether .env actually changed, so an identical shared file doesn't
-// trigger a needless demo restart. Note: SharedEnvPath is the source of truth
-// for demo-relevant config; secrets that must not be shared don't belong in it.
 func materializeEnv(workDir string) (bool, error) {
 	src := filepath.Join(workDir, SharedEnvPath)
 	body, err := os.ReadFile(src)
@@ -488,8 +408,6 @@ func materializeEnv(workDir string) (bool, error) {
 	return true, os.WriteFile(dst, body, 0o644)
 }
 
-// logFailure routes a runtime-hook failure into the dev-server log stream so the
-// error-watcher role (plan 07) can pick it up — self-healing over silent loss.
 func logFailure(dev *devserver.Supervisor, what string, err error) {
 	if dev != nil && dev.Logs != nil {
 		fmt.Fprintf(dev.Logs, "ERROR: club runtime %s failed: %v\n", what, err)

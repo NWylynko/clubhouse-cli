@@ -1,6 +1,3 @@
-// Package canonical owns the host's relocatable session artifact: a bare repo
-// (the durable canonical) + a checked-out main working tree the demo runs off,
-// plus the session git server clients push/fetch against (plans/03).
 package canonical
 
 import (
@@ -15,45 +12,27 @@ import (
 	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
-// Layout under a session's canonical/ directory.
 const (
 	BareDir = "bare.git"
 	WorkDir = "work"
 )
 
-// Host is the one canonical copy for a session — standalone and relocatable
-// (MASTERPLAN §4.4). Never entangled with the host human's personal worktree.
 type Host struct {
-	Root string // absolute path to canonical/
+	Root string
 	PIN  string
-	Bare string // Root/bare.git
-	Work string // Root/work — checked out on main
+	Bare string
+	Work string
 	Srv  *gitserver.Server
 
-	// Bind is the *direct* session-network listener mode from BindForControl
-	// (see internal/netbind). The plain git HTTP listener is always loopback.
-	// Set it before StartServer; empty means loopback (no direct published).
 	Bind string
 
-	// Session, when set, publishes canonical onto the session network (plan 09)
-	// as well as the local interface, and makes SessionRemoteURL the address to
-	// hand the control plane. Set it before StartServer.
 	Session *gitserver.SessionNet
 
-	// Remote is set for a remote-backed canonical (OpenRemote): the canonical
-	// physically lives on another machine (a cloud box) and this Host is a local
-	// replica the conductor drives over git. Empty for a local, on-disk host.
 	Remote string
 }
 
-// SeedReadme is the only file a freshly created canonical carries. Exported
-// because "is there a project on main yet?" is the question the setup role
-// (plan 28) asks to pick scaffold vs adapt mode, and club's own seed must
-// not read as somebody's repo.
 func SeedReadme(pin string) string { return "# club session " + pin + "\n" }
 
-// Create initializes a new canonical artifact under root. seed may be empty
-// (blank project), a path to an existing directory to import, or ignored for now.
 func Create(ctx context.Context, root, pin string) (*Host, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
@@ -73,11 +52,9 @@ func Create(ctx context.Context, root, pin string) (*Host, error) {
 	if err := sbGit.Run(ctx, "", "init", "--bare", h.Bare); err != nil {
 		return nil, err
 	}
-	// Allow HTTP push once the session server is up.
 	_ = sbGit.Run(ctx, h.Bare, "config", "http.receivepack", "true")
 	_ = sbGit.Run(ctx, h.Bare, "config", "receive.denyCurrentBranch", "ignore")
 
-	// Seed main via a temporary clone, then discard it for the durable work tree.
 	tmp := filepath.Join(abs, ".seed")
 	_ = os.RemoveAll(tmp)
 	if err := sbGit.Run(ctx, "", "clone", h.Bare, tmp); err != nil {
@@ -108,7 +85,6 @@ func Create(ctx context.Context, root, pin string) (*Host, error) {
 	return h, nil
 }
 
-// Open rehydrates a Host from an existing relocatable directory.
 func Open(root, pin string) (*Host, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
@@ -127,26 +103,6 @@ func Open(root, pin string) (*Host, error) {
 	return h, nil
 }
 
-// OpenRemote builds a local replica of a canonical that lives on another
-// machine (a cloud box) so an off-box conductor can drive it: the work tree's
-// origin is the box's git URL (fetch client branches / push merged main go
-// straight to the box), and a local mirror bare keeps the refs the merger
-// inspects (BranchesAheadOfMain / intent notes). Idempotent — reuses an
-// existing replica dir. This is what makes the elected-conductor (plan 21)
-// path real: canonical stays on the box, merge intelligence runs on the
-// elector's laptop under its harness login.
-//
-// remoteURL wins on EVERY open, not only on the clone. It is nearly always a
-// loopback forwarder onto `club://<pin>/git/canonical.git` — an address that
-// belongs to the calling process, not to the session — so a replica that keeps
-// the origin it was cloned with is fetching from a port that died with the
-// previous join daemon. That is session 2lmymb (2026-08-17): a laptop rejoined,
-// took the conductor lease, failed to open the replica ("Failed to connect to
-// 127.0.0.1 port 59297"), handed the lease straight back, and did it again
-// every five seconds for eleven minutes while nothing merged. The same
-// staleness covers a git lease that migrates to another member. See
-// TestOpenRemoteFollowsAGitEndpointThatMoved and
-// TestARejoinedConductorFollowsTheSessionsGitEndpointNotItsDeadForwarder.
 func OpenRemote(ctx context.Context, root, pin, remoteURL string) (*Host, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
@@ -182,12 +138,6 @@ func OpenRemote(ctx context.Context, root, pin, remoteURL string) (*Host, error)
 	return h, nil
 }
 
-// pointReplicaOriginAt makes repo's origin remoteURL, and says so when it moved.
-// No probe and no rollback: unlike syncengine.Repoint — which guards a member's
-// own work tree and would rather keep a reachable origin than follow a bad one —
-// the replica has no work of its own to protect, and the URL it is handed came
-// from the control plane one call ago. Leaving it on the previous address is the
-// bug, so a failed set is a failed open.
 func pointReplicaOriginAt(ctx context.Context, repo, remoteURL string) error {
 	cur, err := sbGit.Output(ctx, repo, "remote", "get-url", "origin")
 	if err != nil {
@@ -203,9 +153,6 @@ func pointReplicaOriginAt(ctx context.Context, repo, remoteURL string) error {
 	return nil
 }
 
-// Refresh pulls the latest refs from the remote canonical into the local mirror
-// bare. No-op for a local (on-disk) host. Call before each conductor tick so
-// BranchesAheadOfMain sees freshly pushed client branches and the current main.
 func (h *Host) Refresh(ctx context.Context) error {
 	if h.Remote == "" || h.Bare == "" {
 		return nil
@@ -213,9 +160,6 @@ func (h *Host) Refresh(ctx context.Context) error {
 	return sbGit.Run(ctx, h.Bare, "remote", "update", "--prune")
 }
 
-// StartServer begins serving the bare repo over HTTP. The plain listener is
-// always loopback; h.Bind governs the direct session-network listener only
-// (see gitserver.Server.Bind).
 func (h *Host) StartServer() (string, error) {
 	if h.Srv == nil {
 		h.Srv = &gitserver.Server{Bare: h.Bare}
@@ -229,10 +173,6 @@ func (h *Host) StartServer() (string, error) {
 	return h.Srv.Start("canonical.git")
 }
 
-// SessionRemoteURL is the session-network address of this canonical, empty when
-// it is not on the session network. Callers announcing an endpoint should
-// prefer it over RemoteURL: it names the session rather than this machine, so
-// it stays correct when the git lease moves.
 func (h *Host) SessionRemoteURL() string {
 	if h.Srv == nil {
 		return ""
@@ -240,7 +180,6 @@ func (h *Host) SessionRemoteURL() string {
 	return h.Srv.SessionURL()
 }
 
-// RemoteURL is the live session remote clients clone/push against.
 func (h *Host) RemoteURL() string {
 	if h.Remote != "" {
 		return h.Remote
@@ -248,10 +187,9 @@ func (h *Host) RemoteURL() string {
 	if h.Srv != nil && h.Srv.URL() != "" {
 		return h.Srv.URL()
 	}
-	return h.Bare // file-path fallback
+	return h.Bare
 }
 
-// Close shuts the session git server.
 func (h *Host) Close(ctx context.Context) error {
 	if h.Srv == nil {
 		return nil
@@ -259,12 +197,10 @@ func (h *Host) Close(ctx context.Context) error {
 	return h.Srv.Close(ctx)
 }
 
-// CreateClientBranch makes a new branch off main in the bare repo.
 func (h *Host) CreateClientBranch(ctx context.Context, name string) error {
 	return sbGit.Run(ctx, h.Bare, "branch", name, "main")
 }
 
-// BranchesAheadOfMain lists branches whose tip is not an ancestor of main.
 func (h *Host) BranchesAheadOfMain(ctx context.Context) ([]string, error) {
 	out, err := sbGit.Output(ctx, h.Bare, "for-each-ref", "--format=%(refname:short)", "refs/heads/")
 	if err != nil {
@@ -276,7 +212,6 @@ func (h *Host) BranchesAheadOfMain(ctx context.Context) ([]string, error) {
 		if b == "" || b == "main" {
 			continue
 		}
-		// exit 0 = ancestor; non-zero = ahead or divergent
 		if err := sbGit.Run(ctx, h.Bare, "merge-base", "--is-ancestor", b, "main"); err != nil {
 			ahead = append(ahead, b)
 		}
@@ -284,7 +219,6 @@ func (h *Host) BranchesAheadOfMain(ctx context.Context) ([]string, error) {
 	return ahead, nil
 }
 
-// MergeBase returns the merge-base of main and branch.
 func (h *Host) MergeBase(ctx context.Context, branch string) (string, error) {
 	out, err := sbGit.Output(ctx, h.Bare, "merge-base", "main", branch)
 	if err != nil {
@@ -293,23 +227,6 @@ func (h *Host) MergeBase(ctx context.Context, branch string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
-// SyncWorkToMain fast-forwards the demo work tree to bare's main after a merge
-// advances it. The reset is unconditional: canonical/work is the machine-owned
-// demo mirror ("tracks main, do not edit"), never an edit surface — humans and
-// agents edit in the session's work/ tree and reach main through `club
-// sync`. Local modifications here are club's own churn, above all the
-// lockfile its dependency install rewrites in this very tree, and they lose to
-// main by design.
-//
-// An earlier version skipped the reset whenever the tree was dirty. One install
-// then froze the mirror forever: main advanced, origin/main moved, and the
-// supervised dev server served a tree hours behind while the tick loop logged a
-// warning every 2s. Being current is the mirror's whole job — see
-// TestDemoMirrorTracksMainThroughInstallChurn.
-//
-// `reset --hard` only rewrites tracked files, so untracked installed trees
-// (node_modules, .next) survive; nothing here cleans them, because reinstalling
-// dependencies on every tick would be ruinous.
 func (h *Host) SyncWorkToMain(ctx context.Context) error {
 	c := &sbGit.Cmd{Dir: h.Work}
 	if err := c.Run(ctx, "fetch", "origin", "main"); err != nil {

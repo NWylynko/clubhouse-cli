@@ -1,6 +1,3 @@
-// Command club is the single static binary that hosts and joins club
-// sessions. It is deliberately thin — all behavior lives in internal packages,
-// organized by feature vertical.
 package main
 
 import (

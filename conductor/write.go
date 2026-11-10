@@ -25,12 +25,6 @@ func readWorkFile(root, rel string) (string, error) {
 	return string(b), nil
 }
 
-// conflictMarkerFiles lists tracked files in dir whose working-tree content
-// carries git conflict markers. It anchors on the open/close markers
-// (`<<<<<<< ` / `>>>>>>> `), which — unlike the `=======` separator — do not
-// collide with markdown rules or ordinary source, so false positives are
-// negligible. git grep exits non-zero when nothing matches; that error is
-// expected and ignored (empty result).
 func conflictMarkerFiles(ctx context.Context, dir string) []string {
 	out, _ := sbGit.Output(ctx, dir, "grep", "-lI", "--no-color", "-e", "^<<<<<<< ", "-e", "^>>>>>>> ")
 	seen := map[string]bool{}
@@ -45,10 +39,6 @@ func conflictMarkerFiles(ctx context.Context, dir string) []string {
 	return files
 }
 
-// stripConflictMarkers resolves conflict markers mechanically by keeping the
-// incoming ("theirs") side — the block between `=======` and `>>>>>>> ` — and
-// dropping our side. This mirrors the merger's documented incoming-change bias
-// and is only the fallback when no harness is available to resolve properly.
 func stripConflictMarkers(body string) string {
 	lines := strings.Split(body, "\n")
 	out := make([]string, 0, len(lines))
@@ -67,7 +57,6 @@ func stripConflictMarkers(body string) string {
 		case state != normal && strings.HasPrefix(ln, ">>>>>>> "):
 			state = normal
 		case state == ours:
-			// drop our side
 		default:
 			out = append(out, ln)
 		}

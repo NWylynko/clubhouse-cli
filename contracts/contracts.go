@@ -1,6 +1,3 @@
-// Package contracts emits the session's agent contract into a joined work tree
-// (plans/12): one document, AGENTS.md, that every harness reads, plus a
-// CLAUDE.md that points at it. One protocol, written once.
 package contracts
 
 import (
@@ -10,44 +7,16 @@ import (
 	"strings"
 )
 
-// BriefFile is where the session's one-line project brief lives on main. It is
-// committed rather than held in the control plane so it survives host migration
-// and box cutover, and so every joined agent can read it (plan 28 §2).
 const BriefFile = ".club/brief.md"
 
-// Files are the contracts Install writes, relative to the work tree root. They
-// live on main from the session's first commits (plan 31), which means a
-// scaffolding generator can collide with them — so the setup role needs to know
-// exactly which paths are club's to move aside and give back.
-//
-// AGENTS.md is the ONE source of truth and CLAUDE.md points at it. Three
-// separately-worded copies of one protocol is three things to keep in step, and
-// they had already drifted: only the Codex file ever said sync pulls before it
-// pushes, so a Claude or Cursor agent was told when to publish and never when
-// to refresh. Cursor reads AGENTS.md too, which is why the .mdc is in Legacy.
 var Files = []string{"AGENTS.md", "CLAUDE.md"}
 
-// Legacy is what Install used to write and now removes. A session that started
-// before the collapse has the .mdc committed on main with `alwaysApply: true`,
-// so every cursor agent in it keeps reading a stale copy of the protocol —
-// stopping writing it is not enough.
 var Legacy = []string{".cursor/rules/club.mdc"}
 
-// ProtocolMarker is the instruction that makes a club session work: without
-// it an agent edits happily and never lands anything. It doubles as the
-// assertion that a contract survived being merged with one a scaffold wrote for
-// itself (plan 31).
 const ProtocolMarker = "club sync --intent"
 
-// pointerMarker is what makes CLAUDE.md worth having. Losing it is as bad as
-// losing the protocol itself: the file still looks like a contract and says
-// nothing at all.
 const pointerMarker = "@AGENTS.md"
 
-// Requires is the substring rel must survive a scaffold merge with. It is
-// per-file because the files no longer say the same thing: AGENTS.md carries
-// the protocol, CLAUDE.md carries the pointer at it, and a guard that demanded
-// the protocol from both would force the duplication this collapse removed.
 func Requires(rel string) string {
 	switch rel {
 	case "AGENTS.md":
@@ -59,11 +28,6 @@ func Requires(rel string) string {
 	}
 }
 
-// readBrief loads the brief from the work tree being written into — the tree
-// was already cloned from main at both call sites (host start, join daemon), so
-// nothing needs threading through, and a client joining an hour late still gets
-// the current text. Contracts are rewritten on every join/start, so they track
-// the file.
 func readBrief(workDir string) string {
 	b, err := os.ReadFile(filepath.Join(workDir, filepath.FromSlash(BriefFile)))
 	if err != nil {
@@ -72,9 +36,6 @@ func readBrief(workDir string) string {
 	return strings.TrimSpace(string(b))
 }
 
-// isScaffolded reports whether main holds an actual project yet, as opposed to
-// club's own bookkeeping. Its answer only ever softens the contract's
-// wording, so a false negative costs a sentence, not correctness.
 func isScaffolded(workDir string) bool {
 	entries, err := os.ReadDir(workDir)
 	if err != nil {
@@ -84,15 +45,13 @@ func isScaffolded(workDir string) bool {
 		switch e.Name() {
 		case ".git", ".club", ".cursor", ".gitignore",
 			"AGENTS.md", "CLAUDE.md", "README.md":
-			continue // club's own artifacts, or the seed README
+			continue
 		}
 		return true
 	}
 	return false
 }
 
-// briefSection is appended to the contract. Omitted entirely when there is no
-// brief, so a session without one never grows an empty heading.
 func briefSection(brief string, unscaffolded bool) string {
 	s := "\n## What we're building\n\n" + brief + "\n"
 	if unscaffolded {
@@ -103,9 +62,6 @@ func briefSection(brief string, unscaffolded bool) string {
 	return s
 }
 
-// Install writes the session's agent contract into workDir: AGENTS.md, which
-// every harness reads, plus a CLAUDE.md that points at it. It also removes what
-// earlier versions wrote (Legacy).
 func Install(workDir, pin string) error {
 	agents := contractBody(pin)
 	if brief := readBrief(workDir); brief != "" {
@@ -133,11 +89,6 @@ session. Read it before you touch anything.
 	return removeLegacy(workDir)
 }
 
-// removeLegacy deletes contracts an earlier club wrote, and the directories
-// that existed only to hold them — an emptied `.cursor/` is still an entry a
-// scaffolding generator counts when it refuses a non-empty directory. It stops
-// at any directory somebody else has a file in: `.cursor/rules/` is a shared
-// place, and taking a teammate's rules out with ours would be its own bug.
 func removeLegacy(workDir string) error {
 	for _, rel := range Legacy {
 		path := filepath.Join(workDir, filepath.FromSlash(rel))
@@ -149,15 +100,13 @@ func removeLegacy(workDir string) error {
 		}
 		for dir := filepath.Dir(path); dir != workDir && strings.HasPrefix(dir, workDir); dir = filepath.Dir(dir) {
 			if err := os.Remove(dir); err != nil {
-				break // not empty: somebody else's files live here
+				break
 			}
 		}
 	}
 	return nil
 }
 
-// contractBody is the protocol every agent in the session follows. It is one
-// document because it is one protocol — see Files.
 func contractBody(pin string) string {
 	return fmt.Sprintf(`# club agent contract
 

@@ -1,11 +1,3 @@
-// Package relayticket is the Ed25519 session-membership proof the relay
-// verifies offline (abuse-surface ticket 17 / plan 45).
-//
-// The control plane mints; the relay holds only the public key and can never
-// mint. That is the property that lets club operate — or delegate — relays
-// without trusting them, the same reasoning that made the relay carry
-// ciphertext only. A shared HMAC secret would hand every relay the minting
-// key and is deliberately not an option here.
 package relayticket
 
 import (
@@ -19,13 +11,6 @@ import (
 	"time"
 )
 
-// TicketTTL is how long a minted ticket stays valid.
-//
-// The expiry is LONG, and that is counterintuitive. git opens a new connection
-// per operation, so a five-minute ticket plus a ten-minute control-plane outage
-// means merging stops — breaking the one invariant the relay's separateness
-// exists to protect (§8.1). Renewed on the member cycle that already runs.
-// "Tighten the token lifetime" is the well-meaning change that breaks this.
 const TicketTTL = time.Hour
 
 var (
@@ -34,31 +19,18 @@ var (
 	ErrBadSignature  = errors.New("relayticket: bad signature")
 )
 
-// Claims are what a ticket asserts. A ticket proves membership of the session,
-// never current lease ownership — the relay is not allowed to look that up.
 type Claims struct {
-	PIN      string
-	Service  string
-	MemberID string
-	// SessionUID is the session's surrogate id (plan 46 ticket 01). PINs are
-	// six characters and get reused, so telemetry keyed on one mixes unrelated
-	// sessions; the uid rides the signed payload so the relay and the
-	// telemetry service learn it verified and OFFLINE — no lookup, no
-	// dependency on the control plane being up.
-	//
-	// It is optional on purpose: a ticket minted by a control plane older than
-	// this field verifies with an empty uid rather than being refused, which is
-	// the same deploy ordering the public key has.
+	PIN        string
+	Service    string
+	MemberID   string
 	SessionUID string
 	Expiry     time.Time
 }
 
-// GenerateKey returns a fresh Ed25519 keypair.
 func GenerateKey() (ed25519.PublicKey, ed25519.PrivateKey, error) {
 	return ed25519.GenerateKey(rand.Reader)
 }
 
-// EncodePublic / EncodePrivate are the env-wire form (raw base64url).
 func EncodePublic(pub ed25519.PublicKey) string {
 	return base64.RawURLEncoding.EncodeToString(pub)
 }
@@ -89,7 +61,6 @@ func ParsePrivate(s string) (ed25519.PrivateKey, error) {
 	return ed25519.PrivateKey(b), nil
 }
 
-// Mint signs claims. Expiry is set to now+TicketTTL when zero.
 func Mint(priv ed25519.PrivateKey, c Claims) (string, error) {
 	if len(priv) != ed25519.PrivateKeySize {
 		return "", errors.New("relayticket: mint needs a private key")
@@ -105,8 +76,6 @@ func Mint(priv ed25519.PrivateKey, c Claims) (string, error) {
 	return "v1." + base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(sig), nil
 }
 
-// Verify checks the signature with the public key only and returns the claims.
-// It never talks to the control plane — that is the whole point.
 func Verify(pub ed25519.PublicKey, ticket string, now time.Time) (Claims, error) {
 	if len(pub) != ed25519.PublicKeySize {
 		return Claims{}, errors.New("relayticket: verify needs a public key")
@@ -139,8 +108,6 @@ func Verify(pub ed25519.PublicKey, ticket string, now time.Time) (Claims, error)
 	return c, nil
 }
 
-// PublicOnly reports whether key material could mint. Used by tests that the
-// relay holds nothing that mints.
 func PublicOnly(pub ed25519.PublicKey) bool {
 	return len(pub) == ed25519.PublicKeySize
 }
@@ -168,12 +135,9 @@ func decodePayload(p []byte) (Claims, error) {
 	exp := binary.BigEndian.Uint64(p[len(p)-8:])
 	body := p[:len(p)-8]
 	parts := strings.Split(string(body), "\x00")
-	// Trailing separator after the last field leaves an empty final element.
 	if n := len(parts); n > 0 && parts[n-1] == "" {
 		parts = parts[:n-1]
 	}
-	// Three fields is a ticket minted before the session uid existed — an
-	// older control plane, which must verify rather than be refused.
 	if len(parts) != 3 && len(parts) != 4 {
 		return Claims{}, ErrInvalidTicket
 	}

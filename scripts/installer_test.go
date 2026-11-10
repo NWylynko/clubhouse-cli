@@ -9,24 +9,6 @@ import (
 	"testing"
 )
 
-// The GitHub Release is the only distribution channel there is (plan 47 step
-// 10; homebrew was dropped, not deferred), so these tests own the contract
-// between three files that must agree on one string: `make release` writes
-// `dist/club-<os>-<arch>`, the workflow uploads exactly those files, and
-// `scripts/install.sh` derives the same name from `uname`. A rename in any one
-// of them breaks installing for everybody, and nothing else would notice.
-//
-// These live HERE, in the public client module, and that is deliberate (plan
-// 49): "no tests are public" always meant "nothing needing cptest, a database
-// or a credential". All three files this holds together are now in this repo,
-// and a test that guards a contract from a repo that no longer contains either
-// end of it is a tripwire nobody is standing on.
-//
-// The real suite is still the monorepo's. Nothing here proves the client works.
-
-// repoRoot is this module's root — the directory holding the Makefile, the
-// workflows and scripts/. These tests read all three, so they are anchored to
-// it rather than to the working directory `go test` happens to pick.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	root, err := filepath.Abs("..")
@@ -36,14 +18,6 @@ func repoRoot(t *testing.T) string {
 	return root
 }
 
-// TestInstallShFetchesTheAssetForThisPlatform runs the installer for all four
-// released platforms with a fake `uname` and a fake `curl`, which is the only
-// way to prove the darwin half from linux. The fake curl records which asset
-// URL was fetched, so the assertion is on the ASSET NAME rather than on the
-// script's own echo. The PATH carries no `gh` and the environment no token: the
-// repo is public (plan 49's flip, 2026-08-15) and the installer must need
-// neither — an anonymous curl on a bare machine is the whole point of a
-// one-line installer.
 func TestInstallShFetchesTheAssetForThisPlatform(t *testing.T) {
 	requireSh(t)
 	for _, tc := range []struct {
@@ -63,8 +37,6 @@ func TestInstallShFetchesTheAssetForThisPlatform(t *testing.T) {
 			if got := env.asked(); got != tc.want {
 				t.Fatalf("installer asked the release for %q, want %q\n%s", got, tc.want, out)
 			}
-			// Installed under the plain name, executable, and actually the bytes
-			// that were downloaded rather than a placeholder.
 			bin := filepath.Join(env.dir, "bin", "club")
 			info, err := os.Stat(bin)
 			if err != nil {
@@ -81,9 +53,6 @@ func TestInstallShFetchesTheAssetForThisPlatform(t *testing.T) {
 	}
 }
 
-// TestInstallShRefusesAPlatformThatHasNoAsset: four platforms are released, and
-// a machine outside them must be told so rather than handed a 404 from curl or
-// a file that will not exec.
 func TestInstallShRefusesAPlatformThatHasNoAsset(t *testing.T) {
 	requireSh(t)
 	env := newInstallEnv(t, "Linux", "riscv64")
@@ -96,13 +65,8 @@ func TestInstallShRefusesAPlatformThatHasNoAsset(t *testing.T) {
 	}
 }
 
-// TestTheInstallerNamesTheFilesMakeReleaseWrites closes the loop: the names the
-// installer asks for are the names the release matrix produces, taken from the
-// Makefile rather than from a list copied into this test.
 func TestTheInstallerNamesTheFilesMakeReleaseWrites(t *testing.T) {
 	requireSh(t)
-	// The matrix, from the Makefile rather than from a list copied in here —
-	// adding a fifth platform there must make this test say something.
 	built := map[string]bool{}
 	for _, line := range strings.Split(readRepoFile(t, "Makefile"), "\n") {
 		if !strings.HasPrefix(line, "PLATFORMS ") && !strings.HasPrefix(line, "PLATFORMS:=") && !strings.HasPrefix(line, "PLATFORMS :=") {
@@ -135,45 +99,25 @@ func TestTheInstallerNamesTheFilesMakeReleaseWrites(t *testing.T) {
 	}
 }
 
-// TestTheReleaseWorkflowPublishesTheMatrixOnATag guards the three properties of
-// the workflow that are not obvious from reading it, each of which fails
-// silently: without full history `git describe` yields no tag and every binary
-// reports 0.0.0-dev; without the command-line CONTROL_URL the release stamps
-// whatever `.env` a runner happens to have (none, i.e. loopback); and without
-// contents:write the upload 403s at the very end of a green build.
 func TestTheReleaseWorkflowPublishesTheMatrixOnATag(t *testing.T) {
 	wf := readRepoFile(t, ".github/workflows/release-cli.yml")
 	for _, want := range []string{
-		`- "v*"`,                      // the tag is the trigger
-		"fetch-depth: 0",              // …and the tag is the version, which needs history
-		"contents: write",             // the release is created by this workflow
-		"CONTROL_URL=",                // the documented CI stamping path, beating any .env
-		"dist/club-*",                 // the assets are the files make release wrote
-		"softprops/action-gh-release", // the release itself
+		`- "v*"`,
+		"fetch-depth: 0",
+		"contents: write",
+		"CONTROL_URL=",
+		"dist/club-*",
+		"softprops/action-gh-release",
 	} {
 		if !strings.Contains(wf, want) {
 			t.Fatalf("release-cli.yml is missing %q:\n%s", want, wf)
 		}
 	}
-	// A release must be cut for tags only — a push to main producing one would
-	// mint a release per commit.
 	if !strings.Contains(wf, "startsWith(github.ref, 'refs/tags/v')") {
 		t.Fatalf("the release step must be gated on a tag ref:\n%s", wf)
 	}
 }
 
-// TestPublishingWaitsForAHuman (plan 49): the build is fix-forward, the publish
-// is not. A GitHub Release is what install.sh resolves and what
-// clubhouse.sh/version reports to every installed client, and the box
-// image is what a BYO user docker-pulls onto their own machine — once strangers
-// have them, they are out.
-//
-// So both publishing jobs sit in the `release` environment and wait for its
-// required reviewer. This guards the half that lives in the repo, and it is
-// worth guarding precisely because the other half cannot be: naming an
-// environment with no protection rules is NOT an error — GitHub creates it on
-// first use and the job runs straight through. Deleting this line would look
-// like tidying and would silently remove the gate.
 func TestPublishingWaitsForAHuman(t *testing.T) {
 	for _, wf := range []string{"release-cli.yml", "box-image.yml"} {
 		body := readRepoFile(t, ".github/workflows/"+wf)
@@ -183,10 +127,6 @@ func TestPublishingWaitsForAHuman(t *testing.T) {
 				"(Settings → Environments → release); this line is what routes the job through it.\n%s", wf, body)
 		}
 	}
-	// And in release-cli.yml the gate must sit on a job that does NOT build:
-	// gating the build too would mean the four binaries are not even compiled
-	// until somebody approves, so the approver is asked to bless a build that
-	// has not happened.
 	wf := readRepoFile(t, ".github/workflows/release-cli.yml")
 	env := strings.Index(wf, "environment: release")
 	upload := strings.Index(wf, "actions/upload-artifact")
@@ -198,10 +138,6 @@ func TestPublishingWaitsForAHuman(t *testing.T) {
 	}
 }
 
-// TestTheBoxImageWorkflowFiresOnTheSameTag: the box image and the CLI that
-// pulls it are one release. If they can drift, `pullImage`'s local-image
-// fallback stays load-bearing forever, which is the thing tagging was meant to
-// quiet.
 func TestTheBoxImageWorkflowFiresOnTheSameTag(t *testing.T) {
 	wf := readRepoFile(t, ".github/workflows/box-image.yml")
 	if !strings.Contains(wf, `- "v*"`) {
@@ -209,11 +145,6 @@ func TestTheBoxImageWorkflowFiresOnTheSameTag(t *testing.T) {
 	}
 }
 
-// TestInstallShWithAPinJoinsTheSession: `curl -fsSL https://clubhouse.sh/<pin> | sh`
-// is "install, then be in the session", so a PIN ends in `club join <pin>` —
-// with the TERMINAL on stdin, not the curl pipe, or the join comes up as the
-// plain line log instead of the console. `script` gives the run a real pty the
-// way a person's shell would.
 func TestInstallShWithAPinJoinsTheSession(t *testing.T) {
 	requireSh(t)
 	if _, err := exec.LookPath("script"); err != nil {
@@ -222,8 +153,6 @@ func TestInstallShWithAPinJoinsTheSession(t *testing.T) {
 	env := newInstallEnv(t, "Linux", "x86_64")
 	ran := env.fakeReleaseRecordsItsRuns()
 	root := repoRoot(t)
-	// stdin is a pipe, exactly as under `curl | sh`; the pty is the controlling
-	// terminal behind it.
 	cmd := exec.Command("script", "-qec", "echo | sh "+filepath.Join(root, "scripts", "install.sh")+" abc123", "/dev/null")
 	out, err := env.runCmd(cmd)
 	if err != nil {
@@ -235,9 +164,6 @@ func TestInstallShWithAPinJoinsTheSession(t *testing.T) {
 	}
 }
 
-// TestInstallShWithAPinAndNoTerminalSaysSo: with nobody at a keyboard there is
-// no session to sit in. That is a failure the user is told about by name —
-// with the command to run — never a silent exit 0 that reads as "joined".
 func TestInstallShWithAPinAndNoTerminalSaysSo(t *testing.T) {
 	requireSh(t)
 	env := newInstallEnv(t, "Linux", "x86_64")
@@ -258,12 +184,6 @@ func TestInstallShWithAPinAndNoTerminalSaysSo(t *testing.T) {
 	}
 }
 
-// TestInstallShPutsClubOnThePathOfTheUsersShell: a fresh macOS has no
-// ~/.local/bin on PATH, and an installer that ends with "add this line
-// yourself" leaves `club` unrunnable in the very next command. So the installer
-// writes the PATH line into the rc file of the shell the user actually runs —
-// without asking — and only once, however many times it is re-run (club update
-// re-runs it).
 func TestInstallShPutsClubOnThePathOfTheUsersShell(t *testing.T) {
 	requireSh(t)
 	for _, tc := range []struct {
@@ -292,8 +212,6 @@ func TestInstallShPutsClubOnThePathOfTheUsersShell(t *testing.T) {
 	}
 }
 
-// TestInstallShLeavesRcAloneWhenClubIsAlreadyOnPath: nothing to fix, nothing
-// written.
 func TestInstallShLeavesRcAloneWhenClubIsAlreadyOnPath(t *testing.T) {
 	requireSh(t)
 	env := newInstallEnv(t, "Darwin", "arm64")
@@ -307,8 +225,6 @@ func TestInstallShLeavesRcAloneWhenClubIsAlreadyOnPath(t *testing.T) {
 	}
 }
 
-// fakeReleaseRecordsItsRuns makes the downloaded asset a script that appends
-// each invocation's args, and whether its stdin is a terminal, to a file.
 func (e *installEnv) fakeReleaseRecordsItsRuns() string {
 	e.t.Helper()
 	ran := filepath.Join(e.dir, "ran")
@@ -329,14 +245,11 @@ func readFile(t *testing.T, path string) string {
 	return string(b)
 }
 
-// installEnv is one sandboxed run of scripts/install.sh: a PATH carrying ONLY a
-// fake `uname`, a fake `curl` and the shell's own tools — no `gh`, no
-// GITHUB_TOKEN — and an install directory of its own.
 type installEnv struct {
 	t          *testing.T
 	dir        string
-	shell      string // $SHELL for the run; empty means /bin/sh
-	destOnPath bool   // put the install dir on PATH already
+	shell      string
+	destOnPath bool
 }
 
 func newInstallEnv(t *testing.T, unameS, unameM string) *installEnv {
@@ -357,8 +270,6 @@ func newInstallEnv(t *testing.T, unameS, unameM string) *installEnv {
 		"  *) echo "+unameS+" ;;\n"+
 		"esac\n")
 	writeFakeCurl(t, stub, filepath.Join(dir, "asked"), "%s")
-	// `gh` is shadowed by a stub that refuses: the installer must not reach for
-	// it, because the machine it runs on usually does not have it.
 	writeExec(t, filepath.Join(stub, "gh"), "#!/bin/sh\necho 'fake gh: the installer must not use gh' >&2; exit 2\n")
 	return &installEnv{t: t, dir: dir}
 }
@@ -369,7 +280,6 @@ func (e *installEnv) run(args ...string) (string, error) {
 	return e.runCmd(exec.Command("sh", append([]string{filepath.Join(root, "scripts", "install.sh")}, args...)...))
 }
 
-// runCmd runs cmd inside the sandbox's environment.
 func (e *installEnv) runCmd(cmd *exec.Cmd) (string, error) {
 	e.t.Helper()
 	path := filepath.Join(e.dir, "stub") + string(os.PathListSeparator) + os.Getenv("PATH")
@@ -386,8 +296,6 @@ func (e *installEnv) runCmd(cmd *exec.Cmd) (string, error) {
 		"CLUB_INSTALL_DIR=" + filepath.Join(e.dir, "bin"),
 		"HOME=" + e.dir,
 	}
-	// No credential reaches the script: a token in the developer's shell must not
-	// be what makes this pass.
 	for _, kv := range os.Environ() {
 		if strings.HasPrefix(kv, "GITHUB_TOKEN=") || strings.HasPrefix(kv, "GH_TOKEN=") || strings.HasPrefix(kv, "PATH=") || strings.HasPrefix(kv, "HOME=") || strings.HasPrefix(kv, "SHELL=") || strings.HasPrefix(kv, "ZDOTDIR=") {
 			continue
@@ -399,7 +307,6 @@ func (e *installEnv) runCmd(cmd *exec.Cmd) (string, error) {
 	return string(out), err
 }
 
-// asked is the asset name the installer requested from the release.
 func (e *installEnv) asked() string {
 	e.t.Helper()
 	b, err := os.ReadFile(filepath.Join(e.dir, "asked"))
@@ -409,14 +316,6 @@ func (e *installEnv) asked() string {
 	return strings.TrimSpace(string(b))
 }
 
-// writeFakeCurl puts a `curl` on the stub PATH that answers a GitHub release
-// asset URL — `https://github.com/<repo>/releases/…/<asset>` — by writing a
-// file whose contents are bodyFmt applied to the asset name (the URL's last
-// path element), and recording that name to askedFile. Any other URL is passed
-// to the real curl untouched, which is how update.sh's hop through the fake
-// site keeps working. The release therefore never leaves the sandbox: with the
-// repo public, an unstubbed curl would quietly fetch the real latest release
-// and the test would pass by talking to GitHub.
 func writeFakeCurl(t *testing.T, stubDir, askedFile, bodyFmt string) {
 	t.Helper()
 	real, err := exec.LookPath("curl")
@@ -463,23 +362,6 @@ func requireSh(t *testing.T) {
 	}
 }
 
-// TestTheBoxImageStampsTheVersionItPutsOnTheWire: the box runs a club
-// binary that knocks at the control plane like any laptop, so it needs the same
-// stamp — and it did not have it.
-//
-// box/Dockerfile.ci compiles cmd/club from source and carried only
-// `-X cli.Version`, so every published ghcr image presented
-// controlplane.ClientVersion's package default, `0.0.0-dev`, on every request.
-// ClientMeetsFloor ranks that below every floor, fail-closed: the day a real
-// floor exists, every managed box this deployment provisions is refused at its
-// first knock — and docs/security.md already names the box image as the drain
-// check's blind spot, because `admin versions` only answers for clients that
-// have talked to the control plane and an unbuilt image has talked to nobody.
-//
-// The other two box paths are fine and stay fine for the same reason: they COPY
-// a binary somebody else already stamped (box/Dockerfile takes the shipped one,
-// and the managed container stages a released asset), so this is the only place
-// the box's own link flags are written.
 func TestTheBoxImageStampsTheVersionItPutsOnTheWire(t *testing.T) {
 	df := readRepoFile(t, "box/Dockerfile.ci")
 	const stamp = "-X github.com/nwylynko/clubhouse-cli/controlplane.ClientVersion=${VERSION}"

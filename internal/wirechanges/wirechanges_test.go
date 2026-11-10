@@ -11,16 +11,6 @@ import (
 
 const repoRoot = "../.."
 
-// THE GUARD THAT MATTERS (plan 48 step 1): the tree this repo would tag has a
-// well-formed ledger. It reads the real `.wire-changes/`, because a fixture
-// cannot fail on the commit that actually gets an entry wrong — and `make
-// next-version` failing at tag time, on the tree already committed, is the
-// failure this moves an hour earlier.
-//
-// The OTHER half of the old guard — pairing a breaking floor against the
-// deployed control plane's ClientVersionFloor — is not here and cannot be: that
-// constant is service code in the private repo (plan 49 step 4). It runs there,
-// against this repo's CHANGELOG.md, when that repo bumps its pin.
 func TestPendingWireChangesAreWellFormed(t *testing.T) {
 	if _, err := wirechanges.LoadPending(repoRoot); err != nil {
 		t.Fatalf("the pending wire-change ledger is not readable:\n\n%v", err)
@@ -79,10 +69,6 @@ func TestAWellFormedEntryParses(t *testing.T) {
 	}
 }
 
-// A malformed entry fails NAMING THE FILE AND THE FIX — the same
-// red-guides-the-agent rule as the tripwire. "invalid entry" would send
-// somebody to read this package's source, which is exactly the cost the message
-// exists to remove.
 func TestAMalformedEntryNamesTheFileAndTheFix(t *testing.T) {
 	for _, tc := range []struct {
 		name, file, body string
@@ -154,12 +140,6 @@ func TestAMalformedEntryNamesTheFileAndTheFix(t *testing.T) {
 	}
 }
 
-// A breaking entry with no floor is refused, against fixtures — including the
-// case this repo ships today, where nothing is pending at all. The floor is the
-// only field whose absence is silent: an entry without one parses as prose, is
-// consumed into CHANGELOG.md, and leaves the services repo with nothing to pin
-// its ClientVersionFloor against, so the deployment garbles exactly the clients
-// the entry said were refused.
 func TestABreakingEntryWithoutAFloorIsRefused(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -184,8 +164,6 @@ func TestABreakingEntryWithoutAFloorIsRefused(t *testing.T) {
 	}
 }
 
-// Breaking() is what the services repo's pin-time check counts, so it must pick
-// out exactly the entries that named a floor and nothing else.
 func TestBreakingSelectsOnlyTheEntriesThatNamedAFloor(t *testing.T) {
 	entries := []wirechanges.Entry{
 		{Slug: "add", Class: wirechanges.ClassAdditive, Sentence: "keeps working"},
@@ -198,16 +176,6 @@ func TestBreakingSelectsOnlyTheEntriesThatNamedAFloor(t *testing.T) {
 	}
 }
 
-// THE POINTER RESOLVES (plan 48 step 6). Three places hand an agent the same
-// playbook mid-change — `wirechanges.Playbook`, the snapshot tripwire's drift
-// text, and `.wire-changes/README.md` — and all three name ONE section by its
-// title in ONE file. A title that drifts by a word makes every one of them
-// dangle, and a pointer to a section nobody can find reads like a document that
-// was deleted: the agent concludes the guidance is gone and ships the release
-// the playbook exists to prevent. So the pointer is resolved here the way the
-// agent will resolve it — open the file, look for the heading — and the title
-// is read out of the pointer itself rather than retyped, because a copy in this
-// test could drift with the pointer and still pass.
 func TestThePlaybookPointerResolvesToARealSection(t *testing.T) {
 	const page = wirechanges.FormatDoc
 	if !strings.Contains(wirechanges.Playbook, page) {
@@ -225,9 +193,6 @@ func TestThePlaybookPointerResolvesToARealSection(t *testing.T) {
 			"The heading must match the pointer text exactly.", page, title)
 	}
 
-	// The playbook without these is a heading with the wrong document under it:
-	// each one is a decision the guards cannot teach and the agent needs at the
-	// moment it lands here.
 	for _, want := range []struct{ why, needle string }{
 		{"names the two-release dance", "EXPAND"},
 		{"names the second release", "CONTRACT"},
@@ -243,8 +208,6 @@ func TestThePlaybookPointerResolvesToARealSection(t *testing.T) {
 	}
 }
 
-// betweenQuotes lifts the section title out of a pointer string, so the pointer
-// and the assertion cannot disagree.
 func betweenQuotes(t *testing.T, s string) string {
 	t.Helper()
 	open := strings.Index(s, `"`)
@@ -255,9 +218,6 @@ func betweenQuotes(t *testing.T, s string) string {
 	return s[open+1 : open+1+close]
 }
 
-// The ledger folder is where every message says it is, and the README that the
-// messages point at exists. A pointer to a file nobody wrote is worse than no
-// pointer: it reads like a document that has been deleted.
 func TestTheLedgerFolderAndItsReadmeExist(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(repoRoot, wirechanges.Dir)); err != nil {
 		t.Fatalf("%s is missing: %v", wirechanges.Dir, err)

@@ -1,19 +1,5 @@
 name: bundled-git-darwin
 
-# Build the darwin half of the bundled git. baulk/git-minimal (the linux source,
-# see scripts/fetch-bundled-git.sh) ships no darwin asset, and a fresh Mac has
-# no git at all — /usr/bin/git is a shim that pops the Xcode Command Line Tools
-# installer, which takes ages. So we build git ourselves, here, once per git
-# version, and publish it as a release asset that fetch-bundled-git.sh pins by
-# sha256 exactly like the linux ones.
-#
-# Run by hand (Actions → bundled-git-darwin → Run workflow) when git/version.go
-# moves. It publishes the `bundled-git-v<version>` release as a PRERELEASE that
-# is never "latest": install.sh resolves releases/latest, and a git archive
-# becoming latest would break every install.
-#
-# The tag does not start with `v`, so release-cli.yml and box-image.yml ignore it.
-
 on:
   workflow_dispatch:
 
@@ -22,13 +8,10 @@ permissions:
 
 env:
   GIT_VERSION: "2.52.0"
-  # kernel.org sha256sums.asc for git-2.52.0.tar.xz
   GIT_SHA256: "3cd8fee86f69a949cb610fee8cd9264e6873d07fa58411f6060b3d62729ed7c5"
 
 jobs:
   build:
-    # arm64 runner; the amd64 build is a cross-compile (-arch x86_64 against the
-    # same universal SDK) and is smoke-tested under Rosetta.
     runs-on: macos-15
     steps:
       - name: Fetch and verify git source
@@ -47,11 +30,6 @@ jobs:
             root="git-darwin-${arch}-v${GIT_VERSION}"
             stage="$PWD/stage-$arch"
             make -C "git-${GIT_VERSION}" clean >/dev/null
-            # RUNTIME_PREFIX: resolve libexec/git-core and templates relative to
-            #   the binary, so the tree works wherever club extracts it.
-            # NO_*: nothing that would link a library a fresh Mac lacks. zlib,
-            #   iconv and libcurl are part of macOS itself.
-            # INSTALL_SYMLINKS: club's extractor handles symlinks, not hardlinks.
             make -C "git-${GIT_VERSION}" -j"$(sysctl -n hw.ncpu)" \
               prefix=/ DESTDIR="$stage/$root" \
               RUNTIME_PREFIX=YesPlease \
@@ -88,7 +66,6 @@ jobs:
             t="$(mktemp -d)"
             tar -C "$t" -xJf "out/git-darwin-${arch}-v${GIT_VERSION}.tar.xz"
             g="$t/git-darwin-${arch}-v${GIT_VERSION}/bin/git"
-            # Same env club's git.Env gives it: no user config, PATH=/usr/bin:/bin.
             e="env -i HOME=$t GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null PATH=/usr/bin:/bin"
             $e $run "$g" --version | grep -q "git version ${GIT_VERSION}"
             $e $run "$g" --exec-path | grep -q "^$t/" || { echo "exec-path is not relative to the binary" >&2; exit 1; }

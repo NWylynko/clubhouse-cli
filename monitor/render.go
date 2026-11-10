@@ -6,9 +6,6 @@ import (
 	"strings"
 )
 
-// Render writes a compact table of the mesh to w. header is a one-line banner
-// (rendezvous URL, timestamp) the caller supplies. It is plain text — the live
-// loop clears the screen between frames.
 func Render(w io.Writer, header string, all []Status) {
 	if header != "" {
 		fmt.Fprintln(w, header)
@@ -24,9 +21,6 @@ func Render(w io.Writer, header string, all []Status) {
 			s.PIN, dash(s.Role), branchCol(s), dash(s.Main), dash(s.Head),
 			aheadCol(s), upCol(s.GitURL, s.GitUp), upCol(s.DevURL, s.DevUp))
 	}
-	// Where each service is placed. Printed as its own block because a service
-	// can now be on a different machine from the one that started the session,
-	// and an unplaced one has to say why rather than show a blank cell.
 	for _, s := range all {
 		if len(s.Services) == 0 {
 			continue
@@ -39,9 +33,6 @@ func Render(w io.Writer, header string, all []Status) {
 		}
 	}
 
-	// Who is here and what are they running. Its own block for the same reason
-	// the service table is: the version is per MEMBER, and a session-shaped row
-	// has nowhere to put three answers. No verdict — see monitor.MemberLine.
 	for _, s := range all {
 		if len(s.Members) == 0 {
 			continue
@@ -54,7 +45,6 @@ func Render(w io.Writer, header string, all []Status) {
 		}
 	}
 
-	// Detail lines for anything that needs more than a cell.
 	for _, s := range all {
 		var notes []string
 		if len(s.AheadNames) > 0 {
@@ -101,7 +91,6 @@ func aheadCol(s Status) string {
 	return fmt.Sprintf("%d", s.Ahead)
 }
 
-// upCol shows reachability: blank endpoint → "-", up → "ok", down → "DOWN".
 func upCol(url string, up bool) string {
 	if url == "" {
 		return "-"
@@ -112,7 +101,6 @@ func upCol(url string, up bool) string {
 	return "DOWN"
 }
 
-// seenCol is the member's liveness as the control plane sees it (MemberOnlineAfter).
 func seenCol(online bool) string {
 	if online {
 		return "online"

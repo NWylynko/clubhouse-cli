@@ -17,7 +17,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// requireSessionBox is the shared gate for session-scoped box verbs.
 func requireSessionBox(ctx context.Context, client *controlplane.Client, pin string) (controlplane.BoxFacts, error) {
 	if pin == "" {
 		return controlplane.BoxFacts{}, fmt.Errorf("no session pin — run inside the session work tree, or pass --pin / set CLUB_PIN")

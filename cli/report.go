@@ -22,19 +22,6 @@ import (
 	"github.com/nwylynko/clubhouse-cli/telemetry"
 )
 
-// `club report` is retroactive opt-in for ONE session (plan 46 ticket 15).
-//
-// A human whose session just broke runs one command, everything about that
-// session is uploaded, and they get back an id to quote. It is human-run, one
-// shot, one session — and it works on a machine with telemetry off, without
-// turning it on, because deciding to send this session is not deciding to send
-// every session.
-//
-// There is no unauthenticated ingest door: it exchanges the member Bearer this
-// machine already holds on disk for a FRESH telemetry ticket, which is also
-// why the 1h ticket TTL is not the limit on how long after the fact you can
-// run it. Past session expiry (~3h) the session row and its members are gone,
-// so nothing can mint or verify a ticket and it says so.
 func newReportCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "report",
@@ -47,9 +34,6 @@ func newReportCmd() *cobra.Command {
 	return cmd
 }
 
-// reportSection is one gathered source. A source that could not be read keeps
-// its place and carries WHY — an absent section that simply vanished reads as
-// "the session was silent", which is the opposite of what happened.
 type reportSection struct {
 	Name string
 	Body string
@@ -73,17 +57,8 @@ func runReport(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("this machine is not a member of %s, so it cannot report on it — run `club report` on a machine that joined the session", pin)
 	}
 
-	// The exchange: the member Bearer this machine holds becomes a fresh
-	// telemetry ticket. One member cycle does it, and it is the same call the
-	// session makes every five seconds while it is alive.
 	res, err := client.MemberSync(ctx, pin, id, controlplane.MemberSync{WantSnapshot: true})
 	if err != nil {
-		// An EXPIRED session and a membership that is no longer valid look the
-		// same from here, and deliberately so: expiry deletes the session row
-		// and its members together, so the credential this machine holds
-		// resolves to nothing and the control plane answers unauthorized rather
-		// than 404. Saying "expired" outright would be a guess; naming the
-		// likely cause and the time bound is what an operator can act on.
 		if errors.Is(err, controlplane.ErrNoSession) ||
 			strings.Contains(err.Error(), "unknown or expired pin") ||
 			strings.Contains(err.Error(), "unauthorized") {
@@ -120,8 +95,6 @@ func runReport(cmd *cobra.Command, _ []string) error {
 	lines, _ := cmd.Flags().GetInt("log-lines")
 	sections := gatherReport(ctx, client, pin, *sess, lines)
 
-	// The report id IS the trace id, so `WHERE trace_id = '<id>'` finds every
-	// part of a bundle that had to be split across the 64 KiB body cap.
 	reportID := newReportID()
 	em := telemetry.New(telemetry.Config{
 		URL: ingest, Bearer: ticket, Service: "client", Timeout: 30 * time.Second,
@@ -142,9 +115,6 @@ func runReport(cmd *cobra.Command, _ []string) error {
 			},
 		})
 	}
-	// Close drains: a one-shot command has to finish sending before it exits,
-	// which is the one place the emitter's give-up policy is waited on rather
-	// than fired and forgotten.
 	em.Close()
 
 	fmt.Fprintf(out, "reported %s as %s (%d sections)\n", pin, reportID, len(sections))
@@ -161,13 +131,6 @@ func newReportID() string {
 	return "rp_" + hex.EncodeToString(b[:])
 }
 
-// gatherReport collects what clubdebug already gathers — control-plane state,
-// leases, convergence, the /logs dev-server buffer, the box container log,
-// canonical branch topology — plus this machine's own log tail.
-//
-// It runs from INSIDE the session, which is what lets it read sources
-// clubdebug cannot: a `club://` logs endpoint names a session role and only a
-// process holding the session key can dial it.
 func gatherReport(ctx context.Context, client *controlplane.Client,
 	pin string, sess controlplane.Session, logLines int) []reportSection {
 	var out []reportSection
@@ -179,14 +142,11 @@ func gatherReport(ctx context.Context, client *controlplane.Client,
 		out = append(out, s)
 	}
 
-	// The control plane's whole picture: endpoints, leases, conductor,
-	// convergence, members — the same document `monitor` renders.
 	add("session", asJSON(sess), nil)
 
 	events, err := client.EventsSince(ctx, pin, 0)
 	add("events", asJSON(events), err)
 
-	// The dev server's own output, resolved through the session network.
 	logsURL, lerr := client.EndpointURL(ctx, pin, controlplane.EndpointLogs)
 	if lerr != nil {
 		add("dev-logs", "", lerr)
@@ -195,11 +155,8 @@ func gatherReport(ctx context.Context, client *controlplane.Client,
 		add("dev-logs", body, err)
 	}
 
-	// Canonical branch topology: who is unmerged, from whichever local copy
-	// this machine has.
 	add("git", gitTopology(pin), nil)
 
-	// The box container's log, when this machine is the one that can read it.
 	if sess.Box != nil && strings.TrimSpace(sess.Box.Target) != "" {
 		body, err := boxLogs(sess.Box.Target, pin)
 		add("box", body, err)
@@ -212,7 +169,6 @@ func gatherReport(ctx context.Context, client *controlplane.Client,
 	return out
 }
 
-// gitTopology is the branch picture from whichever local copy exists.
 func gitTopology(pin string) string {
 	p := session.ForPin(pin)
 	var b strings.Builder
@@ -253,8 +209,6 @@ func httpGetText(ctx context.Context, url string) (string, error) {
 	return string(b), err
 }
 
-// boxLogs shells out to this binary's own `box logs`, which is where the
-// ssh-to-a-BYO-box knowledge already lives.
 func boxLogs(target, pin string) (string, error) {
 	bin, err := os.Executable()
 	if err != nil {

@@ -11,32 +11,12 @@ import (
 	sbGit "github.com/nwylynko/clubhouse-cli/git"
 )
 
-// Seeding a canonical from a local directory (plan 33).
-//
-// `--seed <dir>` is a session input like the brief and the run commands, and it
-// has to reach canonical wherever canonical lives. Under remote-first the box
-// creates the session's one canonical before this laptop can touch it, so the
-// directory travels the same way everything else does: a clone of the box's
-// git endpoint, a commit, a push to main. Shipping a tarball over ssh would be
-// a second transport for something git already does, and would not work for a
-// box the laptop only reaches over the mesh.
-
-// dependencyDirs are the trees that must never enter canonical. Kept in step
-// with conductor.IgnoreRules, which is asserted from there — a seed guard
-// laxer than the ignore rules would let in exactly what they exist to keep out.
 var dependencyDirs = []string{
 	"node_modules", ".next", "dist", "build", "target", "__pycache__", ".venv",
 }
 
-// SeedGuardDirs is what PreflightSeedDir refuses to carry, for the test that
-// holds it level with conductor's ignore rules.
 func SeedGuardDirs() []string { return append([]string(nil), dependencyDirs...) }
 
-// PreflightSeedDir is what makes `--seed <bad path>` fail before a container
-// exists rather than minutes later, as a dev server that cannot find a
-// package.json. It refuses an unreadable directory, and a directory carrying an
-// unignored dependency tree — hundreds of megabytes pushed to canonical and
-// then to every client's mirror is worse than a refusal that names the fix.
 func PreflightSeedDir(dir string) error {
 	st, err := os.Stat(dir)
 	if err != nil {
@@ -63,9 +43,6 @@ func PreflightSeedDir(dir string) error {
 	return nil
 }
 
-// seedIgnoreRules reads the seed's own .gitignore. Only top-level rules matter
-// here: the guard asks whether the repo already keeps its dependency
-// directories out, which is a one-line answer in every real project.
 func seedIgnoreRules(dir string) map[string]bool {
 	body, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
 	if err != nil {
@@ -82,14 +59,6 @@ func seedIgnoreRules(dir string) map[string]bool {
 	return rules
 }
 
-// SeedRemote lands a local directory on the `main` of a canonical served
-// somewhere else, in one commit. It is the remote twin of hoststart's
-// seedFromDir, differing only in pushing to a URL instead of writing into a
-// bare repo on this disk.
-//
-// Call it before the setup role runs: a seeded session is by definition not a
-// blank one, and the setup role picks scaffold-vs-adapt by looking at what is
-// on main (plan 31).
 func SeedRemote(ctx context.Context, gitURL, dir string, id sbGit.Identity) error {
 	if gitURL == "" || dir == "" {
 		return nil
@@ -122,8 +91,6 @@ func SeedRemote(ctx context.Context, gitURL, dir string, id sbGit.Identity) erro
 	return c.Run(ctx, "push", "origin", "main")
 }
 
-// CopyTree copies src over dst, leaving dst's own .git alone — the seed brings
-// a project, not a history.
 func CopyTree(src, dst string) error {
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

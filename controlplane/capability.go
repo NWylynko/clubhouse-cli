@@ -2,7 +2,6 @@ package controlplane
 
 import "github.com/nwylynko/clubhouse-cli/detect"
 
-// CapFromProfile flattens a detect.Profile into the ranking subset published on members.
 func CapFromProfile(p detect.Profile) *MemberCapability {
 	s := p.DefaultStack()
 	return &MemberCapability{
@@ -13,7 +12,6 @@ func CapFromProfile(p detect.Profile) *MemberCapability {
 	}
 }
 
-// LocalGeneration reads the generation this machine last knew from cursors (0 if unknown).
 func LocalGeneration(cursorsPath string, load func(string) struct{ Generation int }) int {
 	if load == nil {
 		return 0

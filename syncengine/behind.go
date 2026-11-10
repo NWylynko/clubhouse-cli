@@ -9,12 +9,6 @@ import (
 	sbGit "github.com/nwylynko/clubhouse-cli/git"
 )
 
-// CommitsBehindMain counts how many non-merge commits on main in mainRepo are
-// not yet integrated into work's HEAD. It fetches refs only — nothing touches
-// the index or working tree an agent is live in (plan 42).
-//
-// --no-merges is load-bearing: without it the merge commit the merger creates
-// for your own push counts against you forever.
 func CommitsBehindMain(ctx context.Context, work, mainRepo string) (int, error) {
 	if work == "" || mainRepo == "" {
 		return 0, fmt.Errorf("commits behind main: need work tree and main repo")

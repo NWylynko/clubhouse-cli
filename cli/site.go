@@ -12,15 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// site and dev-setup are the two questions an agent has about a running
-// project, and they have different answers: `site` is the session's dev server
-// — main, everyone's merged work, wherever the dev lease happens to be — and
-// `dev-setup` is how to run THIS branch, which nothing serves.
-//
-// Both are verbs rather than lines in the agent contract because both answers
-// are machine-specific, and the contract is committed to main and merged: a
-// per-machine port in that file makes two members rewrite each other on every
-// sync. See contracts.contractBody.
 func newSiteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "site",
@@ -36,12 +27,6 @@ func newSiteCmd() *cobra.Command {
 	return cmd
 }
 
-// runSiteURL reports the address the live club process on this machine is
-// holding, and deliberately has no fallback to resolving the endpoint itself.
-// Resolving stands up a process-lived forwarder (sessionnet.LocalURL) on a
-// port derived from the PIN; the daemon already holds that port, so this
-// process would land on the next one and print a URL that dies the moment the
-// command exits — a wrong answer that looks exactly like a right one.
 func runSiteURL(cmd *cobra.Command, _ []string) error {
 	pin := resolvePin(cmd)
 	if pin == "" {
@@ -97,9 +82,6 @@ func runDevSetup(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// devSetupCommand applies the same precedence a host start does — the project's
-// committed run.json beats detection — and names which one answered, so an
-// agent can tell a project fact from club's guess about one.
 func devSetupCommand(declared, detected []string) (cmd []string, from string) {
 	if len(declared) > 0 {
 		return declared, runfile.Path
@@ -124,13 +106,6 @@ func devFromLabel(from string) string {
 	return "   (" + from + ")"
 }
 
-// devSetupPortAdvice answers the one question that differs per machine: whether
-// the session's own dev server already owns the port the project will try to
-// bind. On the member holding the dev lease it does, and an agent that follows
-// this advice blind gets an address-in-use it has no context to read.
-//
-// The probe is the honest test of the thing itself, not a proxy for it: nothing
-// here reasons about which lease this machine holds.
 func devSetupPortAdvice() string {
 	port, _ := runtime.LocalDevPort("")
 	if !runtime.LocalPortListening(port) {

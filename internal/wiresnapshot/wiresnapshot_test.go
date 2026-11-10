@@ -11,14 +11,6 @@ import (
 
 const repoRoot = "../.."
 
-// The tripwire (plan 48 step 1).
-//
-// A wire change that nobody classified must not get past the build. The
-// guidance lives HERE, in the failure text of a red test, rather than in a doc
-// — the `whatisrecorded_test.go` pattern — because this is the one moment an
-// agent is standing in front of the decision, and a doc it has not read cannot
-// reach it. The message below is the deliverable: it has to be enough on its
-// own, for somebody who has read nothing else.
 func TestWireSurfaceMatchesTheCommittedSnapshot(t *testing.T) {
 	current, err := wiresnapshot.GenerateWireSurface(repoRoot)
 	if err != nil {
@@ -34,7 +26,6 @@ func TestWireSurfaceMatchesTheCommittedSnapshot(t *testing.T) {
 	t.Fatalf("%s\n\n%s", wiresnapshot.WireSurfaceDiff(committed, current), driftInstructions())
 }
 
-// driftInstructions is the contract, written to be acted on cold.
 func driftInstructions() string {
 	return strings.Join([]string{
 		"THE WIRE SURFACE MOVED AND NOTHING CLASSIFIES THE CHANGE.",
@@ -87,10 +78,6 @@ func driftInstructions() string {
 	}, "\n")
 }
 
-// The scan being broken must not read as a clean surface. Without this, a
-// generator that silently stopped finding types would be "fixed" by
-// regenerating an empty snapshot, and every wire would go unwatched with the
-// suite green — the failure mode `whatisrecorded_test.go` guards the same way.
 func TestTheWireScanActuallyFindsEveryWireThisModuleOwns(t *testing.T) {
 	surface, err := wiresnapshot.GenerateWireSurface(repoRoot)
 	if err != nil {
@@ -114,25 +101,16 @@ func TestTheWireScanActuallyFindsEveryWireThisModuleOwns(t *testing.T) {
 		}
 	}
 
-	// And the half that must NOT be here. The route table is service code; it
-	// stayed in the private repo with the mux that dispatches it, and a
-	// generator that started scanning routes again would be snapshotting a
-	// source this module cannot see.
 	if strings.Contains(surface, "\nroute ") {
 		t.Error("the surface carries route patterns — routes are the private services repo's golden (plan 49 step 4)")
 	}
 }
 
-// Fields that never reach the wire must not be in the snapshot: pinning them
-// would make the tripwire fire on changes no client can observe, and a guard
-// that cries wolf gets regenerated without thought.
 func TestTheSnapshotHoldsOnlyWhatReachesTheWire(t *testing.T) {
 	surface, err := wiresnapshot.GenerateWireSurface(repoRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// BoxRequest.MemberID / MemberSecret are `json:"-"` — set server-side and
-	// never accepted from the wire (plan 44 ticket 05).
 	for _, line := range strings.Split(surface, "\n") {
 		if strings.Contains(line, `json:"-"`) {
 			t.Errorf("the snapshot pins a field that is not on the wire: %q", strings.TrimSpace(line))
@@ -143,10 +121,6 @@ func TestTheSnapshotHoldsOnlyWhatReachesTheWire(t *testing.T) {
 	}
 }
 
-// The failure text is the deliverable, so it is asserted like one. An agent
-// that has read nothing else gets: what to write, where, how to classify it,
-// how the floor pairs with it, the exact regeneration command, and the playbook
-// by name.
 func TestTheDriftMessageIsEnoughOnItsOwn(t *testing.T) {
 	msg := driftInstructions()
 	for _, want := range []struct{ why, needle string }{
@@ -171,10 +145,6 @@ func TestTheDriftMessageIsEnoughOnItsOwn(t *testing.T) {
 	}
 }
 
-// The diff has to say WHICH type moved. `+ Version string` on its own names a
-// field and not its owner, and the owner is the half that decides whether an
-// old client cares — this is the shape of the first real drift this tripwire
-// will see (plan 48 step 2 adds Member.Version).
 func TestTheDriftDiffNamesTheTypeTheFieldLandedIn(t *testing.T) {
 	committed := "## control-plane HTTP\n\ntype Member struct\n" +
 		"\tID string `json:\"id\"`\n\tName string `json:\"name\"`\n\tRole string `json:\"role\"`\n" +
@@ -193,16 +163,11 @@ func TestTheDriftDiffNamesTheTypeTheFieldLandedIn(t *testing.T) {
 	if strings.Contains(diff, "- ") {
 		t.Errorf("a pure addition reported a removal:\n%s", diff)
 	}
-	// And the far side of the file is not dragged along — three lines of
-	// context, not the whole surface.
 	if strings.Contains(diff, "Access string") {
 		t.Errorf("the diff carries unrelated lines:\n%s", diff)
 	}
 }
 
-// A removal reads as a removal. This is the shape of a CONTRACT step — the
-// commit that is actually breaking — so it must not be reported as an edit
-// somewhere vague.
 func TestTheDriftDiffShowsARemovedFieldAsARemoval(t *testing.T) {
 	committed := "## control-plane HTTP\n\ntype ClaimRequest struct\n" +
 		"\tPIN string `json:\"pin\"`\n\tHostMachine string `json:\"hostMachine,omitempty\"`\n" +
@@ -219,8 +184,6 @@ func TestTheDriftDiffShowsARemovedFieldAsARemoval(t *testing.T) {
 	}
 }
 
-// The snapshot on disk is the one this tree generates AND it is where the docs
-// say it is. A moved file with a stale pointer is a tripwire nobody can reset.
 func TestTheCommittedSnapshotIsWhereEverythingSaysItIs(t *testing.T) {
 	if filepath.Base(wiresnapshot.SnapshotPath) != "wire-surface.txt" {
 		t.Fatalf("snapshot path %q — the README and the Makefile name wire-surface.txt", wiresnapshot.SnapshotPath)

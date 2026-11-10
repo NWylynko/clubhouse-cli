@@ -11,11 +11,6 @@ import (
 	"github.com/ulikunitz/xz"
 )
 
-// ExtractArchive unpacks a git-minimal-style tar.xz into dest. The archive's
-// single top-level directory is stripped so dest ends up with cmd/, bin/,
-// libexec/, share/ directly underneath. Exported for the extractor's own tests
-// (the monorepo holds them); the only production caller is the embedded
-// bundled-git archive.
 func ExtractArchive(archive []byte, dest string) error {
 	marker := filepath.Join(dest, ".clubhouse-git-ok")
 	if _, err := os.Stat(marker); err == nil {
@@ -104,15 +99,10 @@ func untarStripRoot(r io.Reader, dest string) error {
 			if err := f.Close(); err != nil {
 				return err
 			}
-			// Ensure executables stay executable after the |0o200 write bit.
 			if err := os.Chmod(target, os.FileMode(hdr.Mode)&0o777); err != nil {
 				return err
 			}
 		case tar.TypeSymlink:
-			// The link's TARGET has to stay inside dest too — the path check
-			// above covers where the link lives, not where it points.
-			// Absolute targets and relative ones that climb past dest are both
-			// refused; git-minimal's own links (`../../bin/git`) resolve inside.
 			resolved := hdr.Linkname
 			if !filepath.IsAbs(resolved) {
 				resolved = filepath.Join(filepath.Dir(target), resolved)
@@ -129,7 +119,6 @@ func untarStripRoot(r io.Reader, dest string) error {
 				return err
 			}
 		default:
-			// skip other types
 		}
 	}
 }

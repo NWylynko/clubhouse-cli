@@ -9,10 +9,6 @@ import (
 	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
-// LogEvents writes join-request arrivals and decisions to the admission
-// component. The fallback path (--no-console / --once / non-TTY) has no users
-// tab, so these lines are how a host notices a knock without already
-// suspecting one (plan 44 ticket 10).
 func LogEvents(events []controlplane.Event) {
 	if len(events) == 0 {
 		return
@@ -29,7 +25,6 @@ func LogEvents(events []controlplane.Event) {
 		case "member.declined":
 			log.Infof("join request from %s declined", payload(e, "name"))
 		case "member.joined":
-			// Invites also emit member.joined; only an acceptance carries acceptedBy.
 			if payload(e, "acceptedBy") == "" {
 				continue
 			}
@@ -43,7 +38,6 @@ func payload(e controlplane.Event, key string) string {
 	return strings.TrimSpace(s)
 }
 
-// WaitLine is the joiner-facing sentence while a redeem is held.
 func WaitLine(pin string, acceptors []string) string {
 	who := strings.Join(acceptors, ", ")
 	if who == "" {
@@ -52,27 +46,17 @@ func WaitLine(pin string, acceptors []string) string {
 	return fmt.Sprintf("waiting to be let into %s — anyone already in the session can accept (%s)", pin, who)
 }
 
-// Log carries the admission line for a session, and knows the two ways events
-// reach it: pushed down the SSE stream, or fetched when that stream is dark.
 type Log struct {
 	Control *controlplane.Client
 	PIN     string
 	cursor  int64
 }
 
-// Stream folds in events that arrived on the session stream.
 func (l *Log) Stream(events []controlplane.Event) {
 	l.advance(events)
 	LogEvents(events)
 }
 
-// Poll fetches what the stream would have delivered. Callers run it on the
-// member cycle only when no stream is live — with a live stream the frames
-// already carry these events, and polling as well would put a request per cycle
-// back into the steady state plan 43 exists to have emptied.
-//
-// The cursor is shared with Stream, so a stream that drops mid-session picks up
-// where the frames stopped instead of re-announcing knocks already logged.
 func (l *Log) Poll(ctx context.Context) {
 	if l == nil || l.Control == nil || l.PIN == "" {
 		return

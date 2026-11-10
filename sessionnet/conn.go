@@ -16,35 +16,18 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
-// The handshake is NNpsk0-shaped: ephemeral X25519 both ways, with the session
-// key mixed in as the pre-shared secret. Two properties are wanted and both
-// come from that one construction — the relay in the middle learns nothing
-// (X25519), and a peer without the session key cannot complete it (PSK). It is
-// deliberately not a full Noise implementation: club has exactly one
-// pattern, and a hand-rolled protocol nobody can read is worse than a small one
-// that says what it is.
 const (
 	handshakeInfo   = "clubhouse-sessionnet-v1"
 	maxRecord       = 16 * 1024
 	handshakeWindow = 20 * time.Second
 )
 
-// framesWritten counts WebSocket frames this process has put on the session
-// network. It exists because a Durable Object has a ~1,000 requests/second soft
-// limit and WebSocket messages count against it, so the frame RATE of a real
-// clone is a production property, not a curiosity — and the only way to know it
-// is to count where the frames are made.
 var framesWritten atomic.Int64
 
-// RecordsWritten is the running total of session-network frames this process
-// has sent. Monotonic; a caller takes two readings and subtracts.
 func RecordsWritten() int64 { return framesWritten.Load() }
 
 var errHandshake = errors.New("sessionnet: handshake failed — wrong session key, or not a session peer")
 
-// secureConn wraps a spliced relay stream in an AEAD record layer. It is an
-// ordinary net.Conn, which is the point: git, HTTP and everything else stay
-// unaware they are on the session network.
 type secureConn struct {
 	net.Conn
 	sealer interface {
@@ -54,7 +37,7 @@ type secureConn struct {
 		Open(dst, nonce, ciphertext, additionalData []byte) ([]byte, error)
 	}
 	sendCtr, recvCtr uint64
-	buf              []byte // decrypted bytes not yet read by the caller
+	buf              []byte
 	hdr              [2]byte
 }
 
@@ -71,15 +54,6 @@ func (c *secureConn) Write(p []byte) (int, error) {
 		if len(chunk) > maxRecord {
 			chunk = chunk[:maxRecord]
 		}
-		// One Write, not two. The underlying conn is a WebSocket, so every
-		// Write is a FRAME — sending the length prefix separately doubled the
-		// frame rate of every transfer and made half of those frames two bytes
-		// long. A Durable Object has a ~1,000 messages/second soft limit, so
-		// that was not waste, it was a ceiling at half the real throughput.
-		//
-		// Seal writes the ciphertext straight after the prefix in one buffer:
-		// the length is known before the seal (plaintext + Overhead), so this
-		// costs one allocation and no copy of the payload.
 		frame := make([]byte, 2, 2+len(chunk)+chacha20poly1305.Overhead)
 		frame = c.sealer.Seal(frame, nonceFor(c.sendCtr), chunk, nil)
 		c.sendCtr++
@@ -119,9 +93,6 @@ func (c *secureConn) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// handshake runs the PSK-authenticated key exchange over raw and returns an
-// encrypted net.Conn. initiator decides which key direction is which; both
-// sides derive the same pair.
 func handshake(raw net.Conn, key Key, initiator bool) (net.Conn, error) {
 	if key.Zero() {
 		return nil, fmt.Errorf("sessionnet: no session key — this member was never admitted to the session")
@@ -137,9 +108,6 @@ func handshake(raw net.Conn, key Key, initiator bool) (net.Conn, error) {
 		return nil, err
 	}
 	peer := make([]byte, 32)
-	// Initiator writes first so the responder never blocks on a peer that
-	// vanished mid-splice; both orderings deadlock-free because each side does
-	// one write and one read.
 	if initiator {
 		if _, err := raw.Write(pub); err != nil {
 			return nil, err
@@ -185,8 +153,6 @@ func handshake(raw net.Conn, key Key, initiator bool) (net.Conn, error) {
 	}
 	c := &secureConn{Conn: raw, sealer: sealer, opener: opener}
 
-	// Key confirmation, so a wrong session key fails HERE with a clear error
-	// rather than as a corrupt git stream ten seconds later.
 	confirm := []byte(handshakeInfo + "-confirm")
 	if _, err := c.Write(confirm); err != nil {
 		return nil, err

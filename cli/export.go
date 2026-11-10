@@ -14,14 +14,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// newExportCmd builds `club export <path>` — the way work leaves a session
-// without a GitHub account.
-//
-// It exists because the wizard asks about the GitHub snapshot during first run,
-// before anybody has written a line of code, and the honest answer to "then how
-// do I keep my work?" could not be "decide about GitHub now". The mirror stays
-// what plan 37 decided it is — opt-in, and not your backup; this is the door
-// that makes deferring that decision free.
 func newExportCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "export <path>",
@@ -52,9 +44,6 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	// `club export ./out` from inside the work tree is easy to type and bad
-	// to do: it drops a second repository into the tree the merger is working
-	// in, which the next sync then publishes to everybody.
 	if dirInside(resolvePath(src), resolvePath(dest)) {
 		return fmt.Errorf("%s is inside the session — export copies your work OUT of it, so pick a path of your own (e.g. ~/dev/my-project)", dest)
 	}
@@ -66,9 +55,6 @@ func runExport(cmd *cobra.Command, args []string) error {
 		ctx = context.Background()
 	}
 
-	// --no-hardlinks because the export is meant to outlive the session, and a
-	// local clone otherwise shares object files with a directory whose whole
-	// purpose is to be swept.
 	if err := sbGit.Run(ctx, "", "clone", "--no-hardlinks", "-q", src, dest); err != nil {
 		return fmt.Errorf("export %s: %w", src, err)
 	}
@@ -76,10 +62,6 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	// The one thing that must not survive: origin points at the session git
-	// server, which answers only while the session is live and only to a member.
-	// Left in place, the user's first `git push` fails against an address that
-	// no longer means anything.
 	if err := sbGit.Run(ctx, dest, "remote", "remove", "origin"); err != nil {
 		return err
 	}
@@ -87,11 +69,6 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// The path on stdout, the story on stderr — the same split `open --print`
-	// uses, so a script gets one line and a human gets told what they got.
-	// Naming the branch matters: the export stands on the client's branch, not
-	// main, and someone who assumes otherwise pushes the wrong one at whatever
-	// remote they eventually pick.
 	fmt.Fprintln(cmd.OutOrStdout(), dest)
 	head, err := sbGit.Output(ctx, dest, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
@@ -102,9 +79,6 @@ func runExport(cmd *cobra.Command, args []string) error {
 	if hasMain {
 		fmt.Fprintf(errW, "on %s (your work, uncommitted bits and all), with main beside it — `git checkout main` for the merged product\n", strings.TrimSpace(head))
 	} else {
-		// Never quietly. The export still holds this client's work, which is
-		// why it is a warning and not a refusal — but "main is not in here" is
-		// exactly the thing a user would otherwise discover weeks later.
 		fmt.Fprintf(errW, "on %s (your work, uncommitted bits and all)\n"+
 			"warning: no main came across — this machine has neither a fresh mirror of main nor an origin/main\n"+
 			"         to read it from, so the export holds this branch only, not everyone's merged work\n",
@@ -114,9 +88,6 @@ func runExport(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// requireEmptyExportDir refuses anything but a missing or empty directory.
-// Export writes a repository; there is no merge semantics for dropping one on
-// top of a directory somebody already has work in.
 func requireEmptyExportDir(dest string) error {
 	st, err := os.Stat(dest)
 	if errors.Is(err, os.ErrNotExist) {
@@ -138,29 +109,7 @@ func requireEmptyExportDir(dest string) error {
 	return nil
 }
 
-// exportFreshestMain makes `main` in the export the merged product.
-//
-// Two things go wrong without it, and the second is the one that bites:
-//
-//  1. A clone creates exactly one local branch — the checked-out one — and puts
-//     everything else under refs/remotes/origin/. Dropping origin below then
-//     takes those with it, so main does not survive the export at all.
-//  2. The obvious repair, promoting the clone's own origin/main, promotes the
-//     WRONG commit: that ref mirrors work/'s local main, which froze at the
-//     moment this client joined. Sync merges main into the client's branch and
-//     never back into that ref, so by the end of a session it is stale by every
-//     merge the conductor has made.
-//
-// The fresh main lives in the join daemon's mirror, or failing that in work/'s
-// own origin/main — the same order sync trusts them in (syncengine.resolveBase).
-//
-// It reports whether the export ends up with a main at all, because when it
-// does not there is nothing to fall back on — see (1) — and the caller has to
-// say so rather than hand over a repo quietly missing everyone else's work.
 func exportFreshestMain(ctx context.Context, p session.Paths, src, dest string) (bool, error) {
-	// A host's canonical work tree is itself checked out on main. Moving the ref
-	// out from under a live checkout would desync its index for no gain: that
-	// tree already holds canonical main.
 	head, err := sbGit.Output(ctx, dest, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return false, err
@@ -178,8 +127,6 @@ func exportFreshestMain(ctx context.Context, p session.Paths, src, dest string) 
 	return true, nil
 }
 
-// freshestMainRef names the repository and ref holding the newest main this
-// machine has, or ("", "") when neither source resolves.
 func freshestMainRef(ctx context.Context, p session.Paths, src string) (repo, ref string) {
 	if m := mirrorDir(p); m != "" {
 		if _, err := sbGit.Output(ctx, m, "rev-parse", "--verify", "-q", "refs/heads/main"); err == nil {
@@ -192,16 +139,7 @@ func freshestMainRef(ctx context.Context, p session.Paths, src string) (repo, re
 	return "", ""
 }
 
-// exportDirtyState reproduces the workspace as it actually stands. A clone
-// carries commits, and the work most at risk when someone asks how to keep
-// their work is precisely the work they have not committed yet.
-//
-// It is done by reading the source, never by writing to it: no commit, no
-// stash, no checkout. Agents are working in that tree, and a verb that moved
-// their HEAD to make a copy would be racing every one of them.
 func exportDirtyState(ctx context.Context, src, dest string) error {
-	// diff HEAD covers staged and unstaged changes to tracked files, deletions
-	// included; --binary so a changed image survives the round trip.
 	patch, err := sbGit.Output(ctx, src, "diff", "HEAD", "--binary")
 	if err != nil {
 		return fmt.Errorf("read uncommitted work in %s: %w", src, err)
@@ -215,10 +153,6 @@ func exportDirtyState(ctx context.Context, src, dest string) error {
 	return exportUntracked(ctx, src, dest)
 }
 
-// exportUntracked copies the files git can see but does not track. It asks git
-// rather than walking the tree so .gitignore is honoured by the same engine
-// that honours it everywhere else — which is what keeps node_modules, the one
-// thing club never syncs, out of the export too.
 func exportUntracked(ctx context.Context, src, dest string) error {
 	out, err := sbGit.Output(ctx, src, "ls-files", "--others", "--exclude-standard", "-z")
 	if err != nil {
@@ -241,8 +175,6 @@ func copyExportFile(from, to string) error {
 		return err
 	}
 	if !st.Mode().IsRegular() {
-		// ls-files -o reports regular files; a symlink or socket that slipped in
-		// is not workspace content worth reproducing.
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {

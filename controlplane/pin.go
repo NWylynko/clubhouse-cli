@@ -12,10 +12,6 @@ const (
 	pinAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
 )
 
-// ValidatePIN checks the PIN is exactly 6 characters of [a-z0-9].
-// pin is TEXT everywhere and flows into log lines, container names and port
-// derivation — unbound or Unicode values were a growth and injection class
-// (abuse-surface ticket 11).
 func ValidatePIN(pin string) error {
 	if len(pin) != pinLen {
 		return fmt.Errorf("pin must be exactly %d characters", pinLen)
@@ -28,7 +24,6 @@ func ValidatePIN(pin string) error {
 	return nil
 }
 
-// MintPIN returns a fresh server-side session name.
 func MintPIN() (string, error) {
 	out := make([]byte, pinLen)
 	for i := range out {

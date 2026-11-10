@@ -1,21 +1,3 @@
-// Package telemetry is the one piece of code all three emitters — control
-// plane, relay and client — use to get an envelope out of a process (plan 46).
-//
-// The whole design is one sentence: **capture is in the request path, delivery
-// is a bounded background queue.** Capture happens where the facts are, so
-// nothing is lost between a handler returning and the envelope existing;
-// delivery is drop-oldest with one short timeout and no retry beyond the batch
-// in hand, so a telemetry service that is down *or hung* costs rows and never
-// latency.
-//
-// That policy is the same in all three processes with **no exception for the
-// control plane**. A 2s in-path POST would violate §8.1 on every member cycle
-// in every session — and a black-holed ingest, which is the case that actually
-// happens, would violate it worse than a dead one.
-//
-// A gap in the data must be visible AS a gap rather than as silence, so the
-// dropped-envelope count goes into the process's own logx output *and* rides
-// the next batch that lands.
 package telemetry
 
 import (
@@ -33,42 +15,22 @@ import (
 	"github.com/nwylynko/clubhouse-cli/logx"
 )
 
-// MaxBodyBytes is the capture cap. Nothing club legitimately handles is
-// near it (the session document is single-digit KB), so full fidelity stays
-// true in practice — and the cap is what stops a hostile POST being a memory
-// attack recorded in your own database.
 const MaxBodyBytes = 64 << 10
 
-// Defaults. The queue depth is deep enough that a few seconds of a hung ingest
-// costs nothing and shallow enough that a permanently hung one is bounded
-// memory.
 const (
 	DefaultQueueDepth = 1000
 	DefaultBatchSize  = 100
-	// One short timeout, deliberately: the emitter is giving up, not retrying.
-	DefaultTimeout = 2 * time.Second
+	DefaultTimeout    = 2 * time.Second
 )
 
-// Event is what a caller hands Emit. It has **no name field** — the name is a
-// required argument to Emit, which is what makes anonymous emission impossible
-// and stops the taxonomy rotting. Names are per emission site, not per
-// content: a new site is a new name, so `SELECT name, count(*)` says what is
-// arriving too much and should be switched off in a future binary.
 type Event struct {
-	// TS overrides the capture time. Zero means now — which is what every
-	// in-path caller wants; a captured log line carrying its own timestamp is
-	// the exception.
 	TS time.Time
 
 	Source     string
 	PIN        string
 	SessionUID string
 	Member     string
-	// TraceID joins the two envelopes of one request. Deliberately not
-	// "requestId": that name already means the client-minted knock
-	// idempotency key, and reusing it would make every future query confuse a
-	// knock with an HTTP call.
-	TraceID string
+	TraceID    string
 
 	Level     string
 	Component string
@@ -86,23 +48,11 @@ type Event struct {
 	Data map[string]any
 }
 
-// Envelope is the wire form: an Event with the emission site's name, the
-// emitting service and the emitting BUILD stamped on it.
 type Envelope struct {
 	TS      time.Time `json:"ts"`
 	Name    string    `json:"name"`
 	Service string    `json:"service"`
-	// Version is the build of the binary that produced this envelope, stamped
-	// by the emitter rather than passed per-event: a caller cannot get it wrong
-	// and a new emission site cannot forget it.
-	//
-	// It is a column of its own for the same reason `dropped` is. The client's
-	// build was already IN this table — as a header line inside `headers`, and
-	// inside every session document in `body` — and being in a text blob it
-	// could not be selected, grouped or joined on, so "did this start at the
-	// deploy?" was unanswerable from the one place that has the data. The
-	// services' builds were not recorded anywhere at all.
-	Version string `json:"version,omitempty"`
+	Version string    `json:"version,omitempty"`
 
 	Source     string `json:"source,omitempty"`
 	PIN        string `json:"pin,omitempty"`
@@ -125,31 +75,14 @@ type Envelope struct {
 
 	Data map[string]any `json:"data,omitempty"`
 
-	// Dropped is how many envelopes were thrown away before this one. It rides
-	// the first envelope of the batch that lands after the loss, so the gap is
-	// recorded in the same place the data is rather than only in a log nobody
-	// kept.
 	Dropped int64 `json:"dropped,omitempty"`
 }
 
-// Config configures an Emitter. An empty URL is a disabled emitter that
-// queues nothing and dials nothing — which is what "a client with no telemetry
-// enabled makes zero telemetry requests" rests on.
 type Config struct {
-	URL string
-	// Key is the shared service key a SERVICE presents. Clients send Bearer
-	// instead — a signed ticket, verified offline (ticket 10).
-	Key string
-	// Bearer is the Ed25519 telemetry ticket a CLIENT presents. Set one or the
-	// other; a client has no service key and must never be given one.
+	URL     string
+	Key     string
 	Bearer  string
-	Service string // control | relay | client
-	// Version is this binary's build, stamped onto every envelope it produces.
-	// Each construction site passes the version it already owns — a service its
-	// `main.Version`, a client the same constant it presents on the wire — so
-	// there is no fourth place to stamp at build time and no second name for
-	// the fact. Blank is honest for an unstamped `go build`/`go test` binary and
-	// stays blank rather than claiming a release.
+	Service string
 	Version string
 
 	QueueDepth int
@@ -160,8 +93,6 @@ type Config struct {
 	Now  func() time.Time
 }
 
-// Emitter is the shared background sender. The zero value is not usable; call
-// New.
 type Emitter struct {
 	cfg  Config
 	log  *logx.Logger
@@ -169,7 +100,7 @@ type Emitter struct {
 	now  func() time.Time
 
 	mu     sync.Mutex
-	ring   []Envelope // drop-oldest ring, len == cfg.QueueDepth when full
+	ring   []Envelope
 	head   int
 	count  int
 	closed bool
@@ -179,8 +110,6 @@ type Emitter struct {
 	done    chan struct{}
 }
 
-// New starts the delivery goroutine. A Config with no URL returns a disabled
-// emitter — Emit is then a no-op and no goroutine runs.
 func New(cfg Config) *Emitter {
 	if cfg.QueueDepth <= 0 {
 		cfg.QueueDepth = DefaultQueueDepth
@@ -206,8 +135,6 @@ func New(cfg Config) *Emitter {
 		e.now = time.Now
 	}
 	if e.http == nil {
-		// No client-level timeout: each POST carries its own context deadline,
-		// so a slow batch cannot outlive the give-up point.
 		e.http = &http.Client{}
 	}
 	if !e.Enabled() {
@@ -219,12 +146,8 @@ func New(cfg Config) *Emitter {
 	return e
 }
 
-// Enabled reports whether anything will ever be sent.
 func (e *Emitter) Enabled() bool { return e != nil && e.cfg.URL != "" }
 
-// Dropped is the count waiting to ride the next batch that lands. It is
-// cleared by a successful delivery and restored by a failed one, so it always
-// describes loss that has not yet been recorded anywhere durable.
 func (e *Emitter) Dropped() int64 {
 	if e == nil {
 		return 0
@@ -232,13 +155,6 @@ func (e *Emitter) Dropped() int64 {
 	return e.dropped.Load()
 }
 
-// Emit queues one envelope and returns. It never touches the network, never
-// blocks on a lock held across I/O, and never returns an error — a caller that
-// could fail because telemetry failed is a caller telemetry is load-bearing
-// for.
-//
-// name is required. An empty name is refused rather than silently recorded:
-// an unnamed row is one nothing can ever turn off.
 func (e *Emitter) Emit(name string, ev Event) {
 	if e == nil || !e.Enabled() {
 		return
@@ -266,8 +182,6 @@ func (e *Emitter) Emit(name string, ev Event) {
 		return
 	}
 	if e.count == len(e.ring) {
-		// Drop-oldest: the newest facts are the ones worth having when a
-		// process is producing more than the ingest can take.
 		e.head = (e.head + 1) % len(e.ring)
 		e.count--
 		e.dropped.Add(1)
@@ -282,23 +196,8 @@ func (e *Emitter) Emit(name string, ev Event) {
 	}
 }
 
-// Close stops the delivery goroutine after flushing what is already queued.
-// It is idempotent. A caller stopping on a signal wants Shutdown instead — this
-// one waits for the flush however long it takes.
 func (e *Emitter) Close() { e.Shutdown(context.Background()) }
 
-// Shutdown stops the emitter, delivering what is already queued, and gives up
-// when ctx does.
-//
-// The bound is the point. A process told to stop is usually being replaced or
-// put to sleep, and on a scale-to-zero platform that is the routine path rather
-// than an operator's decision — so the tail of the queue is worth one delivery
-// attempt. It is worth exactly that: telemetry is never load-bearing, so an
-// ingest that accepts and never answers must not be able to hold a shutdown
-// open. What the drain abandons is counted by the same accounting an overflow
-// uses, because a gap has to be visible as a gap.
-//
-// Pass context.Background() to wait indefinitely — that is Close.
 func (e *Emitter) Shutdown(ctx context.Context) {
 	if e == nil {
 		return
@@ -320,9 +219,6 @@ func (e *Emitter) Shutdown(ctx context.Context) {
 	select {
 	case <-e.done:
 	case <-ctx.Done():
-		// Abandon the rest. The delivery goroutine may still be inside one POST
-		// with its own deadline; deliberately not waited for, because waiting is
-		// what would make the ingest — not the caller — own the bound.
 		e.mu.Lock()
 		left := e.count
 		e.count = 0
@@ -352,9 +248,6 @@ func (e *Emitter) deliver() {
 	}
 }
 
-// take drains up to BatchSize envelopes and stamps the pending drop count onto
-// the first of them. The count is taken (not read) here and put back by a
-// failed send, so it is recorded exactly once.
 func (e *Emitter) take() []Envelope {
 	e.mu.Lock()
 	n := e.count
@@ -375,8 +268,6 @@ func (e *Emitter) take() []Envelope {
 
 	if d := e.dropped.Swap(0); d > 0 {
 		batch[0].Dropped = d
-		// The one thing that must be visible when the telemetry path is itself
-		// the broken thing.
 		e.log.Warnf("dropped %d envelope(s) — the ingest is not keeping up (queue depth %d)", d, e.cfg.QueueDepth)
 	}
 	return batch
@@ -408,8 +299,6 @@ func (e *Emitter) send(batch []Envelope) {
 		return
 	}
 	defer resp.Body.Close()
-	// Drain so the connection is reusable — the emitter POSTs to the same
-	// endpoint for the life of the process.
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
 	if resp.StatusCode >= 300 {
 		e.fail(batch, resp.Status)
@@ -417,34 +306,17 @@ func (e *Emitter) send(batch []Envelope) {
 	}
 }
 
-// fail gives up on the batch in hand. There is no retry: a retry queue is a
-// second unbounded buffer, and the whole policy is that loss is cheaper than
-// latency. The count goes back so it rides whichever batch lands next.
 func (e *Emitter) fail(batch []Envelope, why string) {
 	e.dropped.Add(int64(len(batch)) + batch[0].Dropped)
 	e.log.Warnf("ingest refused a batch of %d, dropping it: %s", len(batch), why)
 }
 
-// KeyHeader carries the shared service key. Clients authenticate with an
-// Ed25519 ticket instead; that lands with the ingest itself.
 const KeyHeader = "X-Club-Telemetry-Key"
 
-// KeyEnv names the shared service key. It lives HERE, in the emitter package,
-// rather than in the telemetry service: the relay reads it too, and the relay
-// image deliberately links neither pgx nor a store — importing the service
-// package for one constant would put a postgres driver in it.
 const KeyEnv = "CLUB_TELEMETRY_KEY"
 
-// URLEnv names where a service posts its own envelopes. Deliberately distinct
-// from what CLIENTS are told: on the compose bridge a service posts to
-// `http://clubhouse-telemetry:7779/v1/telemetry` while a laptop needs the public
-// hostname, and one name serving both would be wrong for one of them.
 const URLEnv = "CLUB_TELEMETRY_URL"
 
-// RequireURL is the boot refusal for a service with nowhere to post.
-// Configurable implies required: "unset means do not record" is the soft
-// default that leaves a deployment silently blind, which is the one failure
-// this whole plan exists to remove.
 func RequireURL(url string) error {
 	if strings.TrimSpace(url) == "" {
 		return errors.New(URLEnv + " is unset — set it to this deployment's telemetry ingest (compose uses http://clubhouse-telemetry:7779" + IngestPath + ")")
@@ -452,22 +324,10 @@ func RequireURL(url string) error {
 	return nil
 }
 
-// IngestPath is where every emitter POSTs. A constant, not config: it is the
-// same in every deployment.
 const IngestPath = "/v1/telemetry"
 
-// TicketService is the session-network service name a client's telemetry
-// ticket is minted for. It lives here because both ends read it — the client
-// looks the ticket up by this name, the ingest refuses any other — and neither
-// should own the other's constant.
 const TicketService = "telemetry"
 
-// RequireKey is the refusal every service that emits telemetry shares, so the
-// sentence an operator reads is identical on all three. Configurable implies
-// required (ADR 0006): no soft default, no "unset means off". The threat is not
-// reading, it is writing — an open ingest means anyone can put rows in the one
-// place you dig, and poisoned data is worse than no data because you will
-// trust it.
 func RequireKey(key string) error {
 	if strings.TrimSpace(key) == "" {
 		return errors.New(KeyEnv + " is unset — set it in .env to the shared telemetry ingest key (any long random string; the same value on the control plane, the relay and clubhouse-telemetry)")
@@ -475,11 +335,6 @@ func RequireKey(key string) error {
 	return nil
 }
 
-// GiveUpAfter is the per-batch deadline — how long one delivery attempt may
-// take before the emitter abandons it. Exposed so a test can state its latency
-// budget in terms of the cost that would ACTUALLY be paid if delivery were ever
-// moved onto the caller's path, rather than in terms of a number somebody
-// guessed (plan 46 ticket 14).
 func (e *Emitter) GiveUpAfter() time.Duration {
 	if e == nil {
 		return 0

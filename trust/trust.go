@@ -1,8 +1,3 @@
-// Package trust hardens conductor placement for local vs remote-box hosts
-// (plans/21, MASTERPLAN §10): local-only by default; election + warning for a
-// cloud box. Conductor intelligence uses a harness CLI under a subscription
-// login on the electing laptop (conductor-on-elector) — never provider API
-// tokens, and never harness login material on the box.
 package trust
 
 import (
@@ -17,23 +12,15 @@ import (
 	"sync"
 )
 
-// HostKind is where canonical lives (not necessarily where the harness runs).
 type HostKind string
 
 const (
-	// LocalHost — laptop / mesh / local box owned by the conductor runner.
-	// Harness login stays on-machine; the trust hole never opens.
 	LocalHost HostKind = "local"
-	// RemoteBox — cloud container someone else owns. Needs election so AI roles
-	// run on the elector's laptop (conductor-on-elector).
 	RemoteBox HostKind = "remote-box"
 )
 
-// RunnerFile is the only conductor-related file written onto a remote box.
-// It names who runs the harness — never API keys or subscription tokens.
 const RunnerFile = ".club/conductor-runner.json"
 
-// Broker owns election state for harness-CLI conductor placement.
 type Broker struct {
 	Kind HostKind
 
@@ -41,15 +28,13 @@ type Broker struct {
 	elector  string
 	harness  string
 	model    string
-	runners  map[string]string // runnerID → elector
-	exports  int               // forbidden secret pushes (must stay 0)
+	runners  map[string]string
+	exports  int
 	warnings []string
 	closed   bool
 	activeID string
 }
 
-// Lease is what a remote box may record: who runs the harness, which CLI.
-// No secrets.
 type Lease struct {
 	Elector  string
 	Harness  string
@@ -58,7 +43,6 @@ type Lease struct {
 	Warning  string
 }
 
-// RunnerAuth is the on-box marker shape — intentionally has no credential fields.
 type RunnerAuth struct {
 	Elector  string `json:"elector"`
 	Harness  string `json:"harness"`
@@ -67,13 +51,10 @@ type RunnerAuth struct {
 	Active   bool   `json:"active"`
 }
 
-// NewBroker starts trust state for a host kind.
 func NewBroker(kind HostKind) *Broker {
 	return &Broker{Kind: kind, runners: map[string]string{}}
 }
 
-// WarningForElect is the clear human/agent warning before electing a harness
-// runner for a non-owned host.
 func WarningForElect(elector, harnessName string) string {
 	if harnessName == "" {
 		harnessName = "harness"
@@ -86,8 +67,6 @@ func WarningForElect(elector, harnessName string) string {
 	)
 }
 
-// WarnBeforeElect records and returns the cloud-election warning. LocalHost
-// returns a no-op notice that election is unnecessary.
 func (b *Broker) WarnBeforeElect(elector, harnessName string) string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -101,7 +80,6 @@ func (b *Broker) WarnBeforeElect(elector, harnessName string) string {
 	return w
 }
 
-// LastWarning returns the most recent warning text.
 func (b *Broker) LastWarning() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -111,16 +89,12 @@ func (b *Broker) LastWarning() string {
 	return b.warnings[len(b.warnings)-1]
 }
 
-// ElectRequest carries what the electing laptop provides — harness name only,
-// never an API key.
 type ElectRequest struct {
-	Elector string // who is electing (agent/client name)
-	Harness string // claude / codex / cursor
-	Model   string // optional model override
+	Elector string
+	Harness string
+	Model   string
 }
 
-// Elect registers this laptop as the conductor harness runner for a RemoteBox.
-// Refuses on LocalHost. Re-election replaces the previous runner id.
 func (b *Broker) Elect(req ElectRequest) (*Lease, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -156,8 +130,6 @@ func (b *Broker) Elect(req ElectRequest) (*Lease, error) {
 	}, nil
 }
 
-// SelfElect is the no-remote-box host-leave path: a remaining client becomes
-// the local conductor with their own on-machine harness. No secrets exported.
 func (b *Broker) SelfElect(name string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -172,7 +144,6 @@ func (b *Broker) SelfElect(name string) error {
 	return nil
 }
 
-// Revoke invalidates a runner id. The elected laptop should stop acting.
 func (b *Broker) Revoke(runnerID string) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -186,7 +157,6 @@ func (b *Broker) Revoke(runnerID string) bool {
 	return true
 }
 
-// Active reports whether runnerID is the current elected runner.
 func (b *Broker) Active(runnerID string) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -194,36 +164,30 @@ func (b *Broker) Active(runnerID string) bool {
 	return ok && b.activeID == runnerID
 }
 
-// Elector returns the current electing client name, if any.
 func (b *Broker) Elector() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.elector
 }
 
-// Harness returns the elected harness name, if any.
 func (b *Broker) Harness() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.harness
 }
 
-// SecretExports is how many times a durable secret would have been pushed to a
-// remote host. Must stay 0.
 func (b *Broker) SecretExports() int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.exports
 }
 
-// RecordSecretExport marks a (forbidden) secret push — tests / defensive hooks.
 func (b *Broker) RecordSecretExport() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.exports++
 }
 
-// Close clears election state.
 func (b *Broker) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -241,8 +205,6 @@ func mintRunnerID() (string, error) {
 	return "sb_" + hex.EncodeToString(b[:]), nil
 }
 
-// InstallOnBox writes the runner marker onto the remote box work tree.
-// Never writes API keys or harness login material.
 func InstallOnBox(boxRoot string, lease *Lease) (string, error) {
 	if lease == nil {
 		return "", fmt.Errorf("install: nil lease")
@@ -271,7 +233,6 @@ func InstallOnBox(boxRoot string, lease *Lease) (string, error) {
 	return path, nil
 }
 
-// WipeBox removes on-box runner marker after the session.
 func WipeBox(boxRoot string) error {
 	path := filepath.Join(boxRoot, RunnerFile)
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
@@ -281,7 +242,6 @@ func WipeBox(boxRoot string) error {
 	return nil
 }
 
-// LoadRunnerAuth reads on-box runner marker.
 func LoadRunnerAuth(boxRoot string) (RunnerAuth, error) {
 	var a RunnerAuth
 	b, err := os.ReadFile(filepath.Join(boxRoot, RunnerFile))
@@ -292,7 +252,6 @@ func LoadRunnerAuth(boxRoot string) (RunnerAuth, error) {
 	return a, err
 }
 
-// DeactivateOnBox marks the on-box runner inactive (revoke without full wipe).
 func DeactivateOnBox(boxRoot string) error {
 	a, err := LoadRunnerAuth(boxRoot)
 	if err != nil {
@@ -310,8 +269,6 @@ func DeactivateOnBox(boxRoot string) error {
 	return os.WriteFile(path, body, 0o600)
 }
 
-// BoxHoldsSecret scans the box tree for a forbidden secret string (API keys,
-// etc.). Used by acceptance tests.
 func BoxHoldsSecret(boxRoot, secret string) (bool, error) {
 	if secret == "" {
 		return false, nil
@@ -343,11 +300,8 @@ func looksLikeSecret(s string) bool {
 		strings.Contains(s, "ANTHROPIC_API_KEY")
 }
 
-// PersistFile is session-local elect state on the electing laptop (not the box).
 const PersistFile = "trust-elect.json"
 
-// PersistState is what the electing laptop keeps so `club elect --revoke`
-// can clear the election. Never contains API keys or harness login material.
 type PersistState struct {
 	PIN      string `json:"pin"`
 	Elector  string `json:"elector"`
@@ -357,7 +311,6 @@ type PersistState struct {
 	BoxRoot  string `json:"box_root,omitempty"`
 }
 
-// SavePersist writes elect state under the session root.
 func SavePersist(sessionRoot string, st PersistState) error {
 	path := filepath.Join(sessionRoot, PersistFile)
 	body, err := json.MarshalIndent(st, "", "  ")
@@ -367,7 +320,6 @@ func SavePersist(sessionRoot string, st PersistState) error {
 	return os.WriteFile(path, body, 0o600)
 }
 
-// LoadPersist reads elect state from the session root.
 func LoadPersist(sessionRoot string) (PersistState, error) {
 	var st PersistState
 	b, err := os.ReadFile(filepath.Join(sessionRoot, PersistFile))
@@ -378,7 +330,6 @@ func LoadPersist(sessionRoot string) (PersistState, error) {
 	return st, err
 }
 
-// ClearPersist removes elect state from the session root.
 func ClearPersist(sessionRoot string) error {
 	err := os.Remove(filepath.Join(sessionRoot, PersistFile))
 	if err != nil && !os.IsNotExist(err) {

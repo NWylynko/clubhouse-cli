@@ -1,18 +1,12 @@
 #!/usr/bin/env bash
-# Download the pinned static git distribution into git/bundled/ so
-# //go:embed can bake it into the club binary. Pin + checksums live here —
-# bump Version in git/version.go in lockstep.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/git/bundled"
 VERSION="2.52.0"
 LINUX="https://github.com/baulk/git-minimal/releases/download/v${VERSION}"
-# baulk/git-minimal has no darwin build, so we build our own:
-# .github/workflows/bundled-git-darwin.yml publishes this prerelease.
 DARWIN="https://github.com/nwylynko/clubhouse-cli/releases/download/bundled-git-v${VERSION}"
 
-# goos-goarch → asset URL + sha256
 declare -A ASSETS=(
   ["linux-amd64"]="${LINUX}/git-minimal-musl-v${VERSION}-linux-amd64.tar.xz"
   ["linux-arm64"]="${LINUX}/git-minimal-musl-v${VERSION}-linux-arm64.tar.xz"
@@ -34,8 +28,6 @@ fetch_one() {
   dest="${OUT}/${key}.tar.xz"
   sum="${SUMS[$key]}"
 
-  # An unpinned asset would be baked, unverified, into a published box image
-  # (plan 23) — refuse rather than warn.
   if [[ -z "$sum" ]]; then
     echo "error: no pinned checksum for $key — add its sha256 above before fetching" >&2
     exit 1
@@ -53,7 +45,6 @@ fetch_one() {
   echo "$sum  $dest" | sha256sum -c -
 }
 
-# Default: host platform. Pass "all" to fetch every known asset.
 TARGET="${1:-$(go env GOOS)-$(go env GOARCH)}"
 if [[ "$TARGET" == "all" ]]; then
   for k in "${!ASSETS[@]}"; do fetch_one "$k"; done

@@ -8,21 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// newHarnessVerbCmd builds `club claude` / `club codex`: the one-word
-// form of `club open && claude`. It resolves the session exactly as `open`
-// does and starts the agent CLI in that session's work tree, with the same
-// session environment the subshell gets — $CLUB_PIN and a runnable
-// `club`.
-//
-// It exists because the two commands are what a human types every time and the
-// pair is the whole ceremony of joining an agent to a session; a verb that
-// forgets neither the directory nor the PIN is one less way to end up editing
-// the wrong tree.
-//
-// The agent CLI is NOT the conductor's harness (internal/harness drives that
-// non-interactively). This is the interactive one a human sits in front of —
-// the same binaries, resolved the same way, which is why it reuses
-// harness.Available rather than keeping a second table of CLI names.
 func newHarnessVerbCmd(n harness.Name) *cobra.Command {
 	verb := string(n)
 	c := &cobra.Command{
@@ -58,8 +43,6 @@ func runHarnessVerb(cmd *cobra.Command, n harness.Name, args []string) error {
 	return spawnInSessionWork(cmd, pin, workPath, bin, passthrough)
 }
 
-// splitAtDash divides args at the `--` cobra swallowed: before it is club's
-// (the optional PIN), after it is the agent CLI's.
 func splitAtDash(cmd *cobra.Command, args []string) (mine, theirs []string) {
 	at := cmd.ArgsLenAtDash()
 	if at < 0 {
@@ -68,9 +51,6 @@ func splitAtDash(cmd *cobra.Command, args []string) (mine, theirs []string) {
 	return args[:at], args[at:]
 }
 
-// harnessBin resolves the CLI binary for a harness on this machine, reusing the
-// same lookup the wizard offers from — cursor's is `agent`/`cursor-agent`, and
-// a second table of names here would be the place they disagree.
 func harnessBin(n harness.Name) (string, bool) {
 	for _, a := range harness.Available() {
 		if a.Name == n {

@@ -10,42 +10,22 @@ import (
 	"time"
 )
 
-// LiveMarker is written while a host or join process is running on this machine.
 type LiveMarker struct {
 	PID       int       `json:"pid"`
 	Role      Role      `json:"role"`
 	Branch    string    `json:"branch,omitempty"`
 	StartedAt time.Time `json:"startedAt"`
-	// DevURL is the address THIS machine opens the session's dev server on: a
-	// client's forwarder, or a host's own bound port. It lives beside the pid
-	// because it dies with the process holding it — the forwarder is
-	// process-lived (sessionnet.LocalURL) — and LiveHere already deletes a
-	// marker whose pid is gone, so a URL cannot outlive its listener here.
-	DevURL string `json:"devUrl,omitempty"`
-	// ReadyAt is when this session's work tree became usable. Zero means the
-	// process is still standing it up — the directory exists, the tree may not.
-	//
-	// It is a separate fact from the marker's existence on purpose: the marker
-	// answers "does a process hold this session" (written first, so nothing
-	// ever reports a session that is on disk as absent) and ReadyAt answers
-	// "can I open it yet". Collapsing them is what produced a `club open`
-	// that denied a session you were standing inside. See Standup.
-	ReadyAt time.Time `json:"readyAt,omitempty"`
+	DevURL    string    `json:"devUrl,omitempty"`
+	ReadyAt   time.Time `json:"readyAt,omitempty"`
 }
 
-// LiveEntry is one live session discovered under $CLUB_HOME.
 type LiveEntry struct {
 	PIN  string
 	Live LiveMarker
 }
 
-// Live is the on-disk liveness file for a session.
 func (p Paths) Live() string { return filepath.Join(p.Root, "live.json") }
 
-// WriteLive records that this process is holding the session open AND that its
-// work tree is ready to use. A standup that wants the first without the second
-// goes through BeginStandup instead — that is the whole of Standup's reason to
-// exist.
 func WriteLive(s Session) error {
 	now := time.Now().UTC()
 	return WriteLiveMarker(s.PIN, LiveMarker{
@@ -57,7 +37,6 @@ func WriteLive(s Session) error {
 	})
 }
 
-// WriteLiveMarker writes an explicit marker (tests).
 func WriteLiveMarker(pin string, m LiveMarker) error {
 	p := ForPin(pin)
 	if err := os.MkdirAll(p.Root, 0o755); err != nil {
@@ -70,7 +49,6 @@ func WriteLiveMarker(pin string, m LiveMarker) error {
 	return os.WriteFile(p.Live(), b, 0o644)
 }
 
-// ClearLive removes the liveness marker for a PIN.
 func ClearLive(pin string) error {
 	err := os.Remove(ForPin(pin).Live())
 	if err != nil && !os.IsNotExist(err) {
@@ -79,14 +57,6 @@ func ClearLive(pin string) error {
 	return nil
 }
 
-// PublishDevURL records where this machine opens the dev server, leaving the
-// rest of the marker alone. The two callers are the only processes that can
-// hold such an address: the join daemon (its forwarder) and a host running the
-// dev server itself.
-//
-// A missing marker is not an error — nothing is live here, so there is no
-// address to publish and `club site` should say exactly that rather than
-// read a URL out of a file no process stands behind.
 func PublishDevURL(pin, url string) error {
 	path := ForPin(pin).Live()
 	b, err := os.ReadFile(path)
@@ -107,10 +77,6 @@ func PublishDevURL(pin, url string) error {
 	return WriteLiveMarker(pin, m)
 }
 
-// LiveHere reports whether THIS machine is currently holding one session open,
-// pid-checked. A stale marker (the daemon was killed, the laptop lost power) is
-// deleted and reads as not-live, which is what lets a rejoin proceed instead of
-// being locked out by the corpse of the process it is replacing.
 func LiveHere(pin string) (LiveMarker, bool) {
 	path := ForPin(pin).Live()
 	b, err := os.ReadFile(path)
@@ -129,8 +95,6 @@ func LiveHere(pin string) (LiveMarker, bool) {
 	return m, true
 }
 
-// LivePins lists sessions with a live marker whose pid is still running.
-// Stale markers are deleted. Order: most recently started first.
 func LivePins() ([]LiveEntry, error) {
 	root := filepath.Join(Home(), "sessions")
 	ents, err := os.ReadDir(root)
@@ -158,7 +122,6 @@ func LivePins() ([]LiveEntry, error) {
 	return out, nil
 }
 
-// BranchLabel is the human-facing name from a git branch (client/alice → alice).
 func BranchLabel(branch string) string {
 	if branch == "" {
 		return ""
@@ -177,6 +140,5 @@ func processAlive(pid int) bool {
 	if err != nil {
 		return false
 	}
-	// Signal 0 checks existence without delivering a signal (POSIX).
 	return p.Signal(syscall.Signal(0)) == nil
 }

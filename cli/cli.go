@@ -1,8 +1,3 @@
-// Package cli defines club's command surface. club is mostly a CLI, but
-// its primary users are the *agents*, not the humans (MASTERPLAN §13) — so the
-// output is kept machine-legible and the human-facing verbs are deliberately few
-// (`club` to host, `club join` to join); the rest are driven by the
-// in-repo agent contract.
 package cli
 
 import (
@@ -21,9 +16,6 @@ import (
 
 var traceOnce sync.Once
 
-// setupTracing wires every git invocation into the debug logger, so a
-// CLUB_LOG=debug run shows the full git conversation the host/join loops
-// have with the session. No-op unless debug is enabled, and installed at most once.
 func setupTracing() {
 	traceOnce.Do(func() {
 		gitLog := logx.New("git")
@@ -58,21 +50,15 @@ func join(args []string) string {
 		if i > 0 {
 			out += " "
 		}
-		// Keep each trace to one line — commit messages carry newlines.
 		out += strings.ReplaceAll(a, "\n", "⏎")
 	}
 	return out
 }
 
-// Version is the build version, overridden at link time via
-// -ldflags "-X github.com/nwylynko/clubhouse/internal/cli.Version=<v>".
 var Version = "0.0.0-dev"
 
-// controlFlag is an optional --control override (tests). Empty → BaseURL().
 var controlFlag string
 
-// stub returns a RunE that prints a uniform "not implemented" line naming the
-// plan that will implement the verb, and succeeds.
 func stub(plan string) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s: not implemented yet — see %s\n", cmd.CommandPath(), plan)
@@ -80,7 +66,6 @@ func stub(plan string) func(*cobra.Command, []string) error {
 	}
 }
 
-// NewRootCmd builds the full command tree.
 func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "club",
@@ -94,18 +79,8 @@ func NewRootCmd() *cobra.Command {
 		SilenceErrors: true,
 		RunE:          runHost,
 	}
-	// Two versions, because there are two stamps and they can disagree. Version
-	// is this build; controlplane.ClientVersion is what rides X-Club-Version
-	// on every request and therefore what a 426 refusal quotes back — and since
-	// plan 49 they come from different places (this module's tag, and the client
-	// module version a services build pins). Printing only the first would leave
-	// "your version is too old" unanswerable from the machine being refused, and
-	// an unstamped wire version reads as 0.0.0-dev, which is below every floor.
 	root.SetVersionTemplate("{{.Name}} version {{.Version}} (wire " + controlplane.ClientVersion + ")\n")
 	addHostFlags(root)
-	// First-run only (plan 29). These live on `root` and deliberately NOT on
-	// `_host`: the wizard is a human entry point, and a booting box container
-	// that stopped to ask a question would be a hung provision.
 	root.Flags().Bool("interactive", false, "ask the first-run questions (default: auto — only on a terminal, and never with --once)")
 	root.Flags().Bool("box", false, "run this session on a box the control plane provisions (no ssh target, no docker here)")
 	root.Flags().String("box-ssh", "", "BYO: provision the box on a machine you own — <user@host>, or `local` for this machine")
@@ -115,10 +90,6 @@ func NewRootCmd() *cobra.Command {
 	root.Flags().String("mirror", "", "git URL for the durability snapshot (plan 15); the token is read from $GITHUB_TOKEN/$GH_TOKEN here and never published")
 	root.PersistentFlags().StringVar(&controlFlag, "control", "", "control plane URL (default: "+controlplane.DefaultURL+")")
 
-	// The machine-to-machine door into the same host loop. A PIN names a session
-	// that already exists, so only a machine resuming/claiming one may pass it —
-	// `box add` boots the container with `_host --pin <pin>` (plan 27). Humans
-	// create with plain `club` and join with `club join <pin>`.
 	hostCmd := &cobra.Command{
 		Use:    "_host",
 		Short:  "Host a session under a given PIN (internal: used by `box add`)",
@@ -127,8 +98,6 @@ func NewRootCmd() *cobra.Command {
 	}
 	addHostFlags(hostCmd)
 	hostCmd.Flags().String("pin", "", "session PIN to host (≥6 alphanumeric)")
-	// Hidden even here because a human typing it on a laptop is how you steal a
-	// live PIN from a working box — the demotion default (plan 24) stops that.
 	hostCmd.Flags().Bool("takeover", false, "claim this PIN even if the session is hosted elsewhere")
 	_ = hostCmd.Flags().MarkHidden("takeover")
 
@@ -214,8 +183,6 @@ func NewRootCmd() *cobra.Command {
 	elect.Flags().String("box", "", "remote box work root to install the runner marker into")
 	addPinFlag(elect)
 
-	// The manual half of automatic placement (plan 30). Automatic covers the
-	// case where nobody is around; these cover the case where somebody is.
 	take := &cobra.Command{
 		Use:   "take <git|dev|conductor|all>",
 		Short: "Run a session service on this machine (refused while another member is serving it)",
@@ -256,9 +223,6 @@ func NewRootCmd() *cobra.Command {
 	mon.Flags().Duration("interval", 2*time.Second, "refresh interval")
 	addPinFlag(mon)
 
-	// `club update` — the verb the end-of-session nudge names. A human verb,
-	// so it takes no flags and asks no questions: which release, which asset and
-	// where it lands are all already decided (clubhouse-cli/update).
 	updateCmd := &cobra.Command{
 		Use:   "update",
 		Short: "Replace this club with the latest release",
@@ -266,17 +230,10 @@ func NewRootCmd() *cobra.Command {
 		RunE:  runUpdate,
 	}
 
-	// `control` and `relay` are NOT verbs here. They are operator services
-	// shipped as `clubhouse-control` and `clubhouse-relay` (plan 39): different
-	// audience, different release cadence, linux-only. Keeping them on this
-	// binary is what made every teammate's laptop link a postgres driver.
 	root.AddCommand(hostCmd, join, syncCmd, push, pull, repoint, runCmd, conductorCmd, daemon, elect, take, handOff, services, newMembersCmd(), newAccessCmd(), newTelemetryCmd(), newReportCmd(), mon, newBoxCmd(), newOpenCmd(), newExportCmd(), newHarnessVerbCmd(harness.Claude), newHarnessVerbCmd(harness.Codex), newSiteCmd(), newDevSetupCmd(), updateCmd)
 	return root
 }
 
-// addHostFlags defines the flags shared by the human create verb (`club`)
-// and the internal boot verb (`_host`), so the two cannot drift. Only `_host`
-// adds --pin/--takeover on top.
 func addHostFlags(cmd *cobra.Command) {
 	cmd.Flags().String("brief", "", "one line saying what we're building (e.g. \"reactjs vite with tailwind\"); the setup role scaffolds it and every joined agent's contract quotes it")
 	cmd.Flags().String("seed", "", "optional local directory to seed canonical from")
@@ -290,15 +247,10 @@ func addHostFlags(cmd *cobra.Command) {
 	addConsoleFlag(cmd)
 }
 
-// addConsoleFlag opts a long-running verb out of the session console, back to
-// the line log it has always printed. Automatic when stdout is not a terminal —
-// the flag is for a terminal you want the plain output on anyway.
 func addConsoleFlag(cmd *cobra.Command) {
 	cmd.Flags().Bool("no-console", false, "print the plain line log instead of the live session console")
 }
 
-// newBoxCmd builds the `box` command group: provision and drive a cloud dev box
-// (a Docker container on a remote machine) over ssh.
 func newBoxCmd() *cobra.Command {
 	boxCmd := &cobra.Command{
 		Use:   "box",
@@ -367,11 +319,6 @@ func newBoxCmd() *cobra.Command {
 	return boxCmd
 }
 
-// rootPinGuidance returns the message to fail with when a human hands the root
-// (create) verb a PIN. `club --pin x` used to mean create-or-resume-or-
-// silently-demote depending on invisible on-disk state; a PIN now always means
-// "join a session that exists" (plan 27). Returns "" for every other invocation
-// — subcommands (`join`, `sync`, `_host`, …) take PINs as before.
 func rootPinGuidance(root *cobra.Command, args []string) string {
 	target, _, err := root.Find(args)
 	if err != nil || target != root {
@@ -393,8 +340,6 @@ func rootPinGuidance(root *cobra.Command, args []string) string {
 	return ""
 }
 
-// Run executes club with the given args, writing to out/errW, and returns a
-// process exit code.
 func Run(args []string, out, errW io.Writer) int {
 	setupTracing()
 	root := NewRootCmd()

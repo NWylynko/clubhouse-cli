@@ -11,35 +11,19 @@ import (
 	"time"
 )
 
-// FollowOptions configures a held reader of a remote /logs endpoint.
 type FollowOptions struct {
-	// URL resolves the endpoint for each connection. It is a function, not a
-	// string, because dev is a placed service and it migrates (plan 30): a
-	// follower that reconnects to the address it first dialled follows a member
-	// that no longer holds the lease.
 	URL func(context.Context) (string, error)
 
-	// Stream and Phase are the server-side filter. Empty means everything —
-	// the merged human view a console shows. The error-watcher asks for
-	// stderr ∧ dev, which is what keeps club's own narration away from it.
 	Stream Stream
 	Phase  Phase
 
 	Client *http.Client
 
-	// Floor is how long to wait before re-dialling after a stream ends.
 	Floor time.Duration
 
-	// OnStatus reports every connection attempt — nil on success, the failure
-	// otherwise. A follower that swallowed this would leave a viewer showing
-	// "no dev-server output yet" forever for an endpoint nobody can dial,
-	// which is the exact lie plan 40 removed from the startup line.
 	OnStatus func(error)
 }
 
-// Follower is a held /logs reader. Pages arrive on C as the server appends
-// them; a reconnect to a *different* holder restarts the cursor and says so
-// with Reset, because sequence numbers belong to one dev server's buffer.
 type Follower struct {
 	C <-chan LogPage
 
@@ -47,7 +31,6 @@ type Follower struct {
 	kick   chan struct{}
 }
 
-// Close ends the follower.
 func (f *Follower) Close() {
 	if f == nil || f.cancel == nil {
 		return
@@ -55,7 +38,6 @@ func (f *Follower) Close() {
 	f.cancel()
 }
 
-// Reconnect drops the current connection so the next one re-resolves the URL.
 func (f *Follower) Reconnect() {
 	if f == nil || f.kick == nil {
 		return
@@ -66,11 +48,6 @@ func (f *Follower) Reconnect() {
 	}
 }
 
-// Follow holds a /logs stream, re-dialling on its floor. A stream that ends is
-// a reconnect, never a verdict — the dev server may simply have restarted.
-//
-// OnReset fires when the resolved endpoint changes, so a caller accumulating a
-// view can drop what the previous holder produced.
 func Follow(ctx context.Context, opt FollowOptions, onReset func()) *Follower {
 	ctx, cancel := context.WithCancel(ctx)
 	ch := make(chan LogPage, 32)
@@ -124,12 +101,9 @@ func (o FollowOptions) client() *http.Client {
 	if o.Client != nil {
 		return o.Client
 	}
-	// No Timeout: a held stream is not a request that finishes.
 	return &http.Client{}
 }
 
-// FollowQuery is the cursor+filter URL both the held stream and a plain paged
-// GET use, so the two can never drift into asking for different things.
 func FollowQuery(base string, cursor int64, stream Stream, phase Phase) string {
 	q := fmt.Sprintf("%s?since=%d", strings.TrimSuffix(base, "/"), cursor)
 	if stream != "" {
@@ -141,8 +115,6 @@ func FollowQuery(base string, cursor int64, stream Stream, phase Phase) string {
 	return q
 }
 
-// followOnce holds one connection and returns the cursor to resume from plus
-// why it ended (nil when the stream simply closed).
 func followOnce(ctx context.Context, kick <-chan struct{}, opt FollowOptions, base string, cursor int64, out chan<- LogPage) (int64, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -181,8 +153,6 @@ func followOnce(ctx context.Context, kick <-chan struct{}, opt FollowOptions, ba
 		}
 	}
 
-	// A server that answers the paged JSON instead of a stream is read once and
-	// re-read on the floor. That is the degradation rule, not a second path.
 	if !strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
 		var page LogPage
 		if derr := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&page); derr != nil {
@@ -198,7 +168,7 @@ func followOnce(ctx context.Context, kick <-chan struct{}, opt FollowOptions, ba
 	for sc.Scan() {
 		line := sc.Text()
 		switch {
-		case strings.HasPrefix(line, ":"): // ping
+		case strings.HasPrefix(line, ":"):
 		case strings.HasPrefix(line, "data:"):
 			data = strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 		case line == "":

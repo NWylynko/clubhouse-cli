@@ -14,21 +14,17 @@ import (
 	"github.com/nwylynko/clubhouse-cli/sessionnet"
 )
 
-// Service is the session-network service name for box command execution.
 const Service = "exec"
 
-// HolderOptions publishes box exec onto the session network.
 type HolderOptions struct {
 	Relay      string
 	PIN        string
 	Key        sessionnet.Key
 	WorkDir    string
 	OnShutdown func()
-	// Ticket returns a current relay ticket for the exec service (ticket 17).
-	Ticket func() (string, error)
+	Ticket     func() (string, error)
 }
 
-// Holder serves remote argv execution for the session's box.
 type Holder struct {
 	ln     net.Listener
 	cancel context.CancelFunc
@@ -36,7 +32,6 @@ type Holder struct {
 	opt    HolderOptions
 }
 
-// StartHolder publishes exec and runs commands in WorkDir for each connection.
 func StartHolder(ctx context.Context, opt HolderOptions) (*Holder, error) {
 	if opt.Relay == "" {
 		return nil, errors.New("boxexec: no relay address")
@@ -62,7 +57,6 @@ func StartHolder(ctx context.Context, opt HolderOptions) (*Holder, error) {
 	return h, nil
 }
 
-// Close stops publishing exec.
 func (h *Holder) Close() error {
 	if h == nil {
 		return nil
@@ -117,8 +111,6 @@ func (h *Holder) run(ctx context.Context, conn net.Conn, argv []string) error {
 	if len(argv) == 0 {
 		return writeError(conn, errors.New("empty argv"))
 	}
-	// Unattributable by policy (ticket 22): the session key authorises the
-	// call, and an incident review can say what ran and from where — never who.
 	src := ""
 	if addr := conn.RemoteAddr(); addr != nil {
 		src = addr.String()
@@ -140,19 +132,6 @@ func (h *Holder) run(ctx context.Context, conn net.Conn, argv []string) error {
 	cmd := exec.CommandContext(runCtx, argv[0], argv[1:]...)
 	cmd.Dir = h.opt.WorkDir
 	cmd.Stdin = stdinReader
-	// Framing writers rather than StdoutPipe/StderrPipe, deliberately.
-	//
-	// Wait closes the pipes those return as soon as the process exits, and Go
-	// says outright that it is "incorrect to call Wait before all reads from
-	// the pipe have completed". Reading them on their own goroutines alongside
-	// Wait lost that race often enough to be a real defect: `club box run`
-	// returned the correct exit status with no output, on a loaded box, which
-	// is exactly when somebody is running a command to find out what broke.
-	//
-	// With cmd.Stdout/cmd.Stderr set, os/exec owns the pipe and Wait does not
-	// return until its copies are done. (The documented cost is that a command
-	// which daemonises a child holding the fd keeps Wait blocked — the caller's
-	// context is the bound on that, and losing output silently was worse.)
 	cmd.Stdout = &msgWriter{write: write, typ: msgStdout}
 	cmd.Stderr = &msgWriter{write: write, typ: msgStderr}
 	if err := cmd.Start(); err != nil {
@@ -175,8 +154,6 @@ func (h *Holder) run(ctx context.Context, conn net.Conn, argv []string) error {
 	_ = stdinWriter.Close()
 	_ = stdinReader.Close()
 	if code < 0 {
-		// Killed by a signal: no exit status of its own, so report failure
-		// rather than a negative number the client cannot act on.
 		code = 1
 	}
 	var body [4]byte
@@ -184,9 +161,6 @@ func (h *Holder) run(ctx context.Context, conn net.Conn, argv []string) error {
 	return write(msgExit, body[:])
 }
 
-// msgWriter frames whatever the command writes as one stream message. Writes
-// are serialised by the caller's mutex, so stdout and stderr cannot interleave
-// mid-frame.
 type msgWriter struct {
 	write func(byte, []byte) error
 	typ   byte

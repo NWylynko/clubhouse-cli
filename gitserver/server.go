@@ -1,10 +1,3 @@
-// Package gitserver serves a bare repo over HTTP using the bundled git's
-// upload-pack / receive-pack — the live session remote (plans/03, §5.4/§5.6).
-//
-// The plain listener binds loopback, always — it exists only as this machine's
-// own git origin. Everything arriving from off this machine reaches the same
-// mux through the session network (relay or direct), and has completed the
-// session-key handshake first — see SessionNet.
 package gitserver
 
 import (
@@ -31,44 +24,19 @@ import (
 	"github.com/nwylynko/clubhouse-cli/sessionnet"
 )
 
-// Server is a session git HTTP endpoint backed by one bare repo.
 type Server struct {
-	Bare string // absolute path to the bare repo
+	Bare string
 
-	// Bind is the *direct* session-network listener mode from BindForControl
-	// (see internal/netbind): "auto" or "" (loopback). The plain HTTP listener
-	// ignores this and always binds loopback — BindForControl's auto-upgrade
-	// exists so a remote control plane gets a publishable direct address, never
-	// an open unauthenticated door on the LAN.
 	Bind string
 
-	// Logs, when set, is served as plain text at /logs on the same endpoint.
-	// This is how the canonical dev server's output reaches an off-box
-	// conductor's error-watcher (which lives on a laptop and cannot see the
-	// box's process logs directly). Read at request time, so it may be set
-	// after Start. nil = /logs returns empty.
 	Logs func() string
 
-	// LogsSelect, when set, serves a filtered view at /logs?stream=&phase=.
-	// The off-box error-watcher asks for dev-phase stderr; a human (clubdebug,
-	// curl) passes no query and keeps getting everything, in order.
 	LogsSelect func(stream, phase string) string
 
-	// LogsSince, when set, serves a followable view at /logs?since=<cursor>:
-	// JSON lines plus the next cursor, so the console's dev tab streams instead
-	// of re-reading a snapshot (plan 36 §2). Without `since` the response is
-	// byte-for-byte the plain text it has always been — clubdebug, curl and the
-	// error-watcher all depend on that.
 	LogsSince func(cursor int64, stream devserver.Stream, phase devserver.Phase) ([]devserver.Line, int64)
 
-	// LogsSubscribe, when set, serves a held SSE stream at /logs?since=<cursor>
-	// with Accept: text/event-stream (plan 43 ticket 09).
 	LogsSubscribe func(cursor int64, stream devserver.Stream, phase devserver.Phase) *devserver.LogSubscriber
 
-	// Session, when set, publishes this endpoint onto the session network
-	// (plan 09) in addition to the local listener. Clients then reach it by
-	// session address rather than machine address, and only with the session
-	// key.
 	Session *SessionNet
 
 	mu            sync.Mutex
@@ -79,13 +47,9 @@ type Server struct {
 	sessionURL    string
 	sessionDirect string
 	name          string
-	// closing is closed by Close to end held /logs streams, which would
-	// otherwise keep http.Server.Shutdown waiting forever.
-	closing chan struct{}
+	closing       chan struct{}
 }
 
-// closingCh returns the shutdown signal for held handlers, creating it on first
-// use so a Server built as a bare literal still works.
 func (s *Server) closingCh() <-chan struct{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -95,25 +59,15 @@ func (s *Server) closingCh() <-chan struct{} {
 	return s.closing
 }
 
-// SessionNet is what a git server needs to join the session network.
 type SessionNet struct {
-	Relay string
-	PIN   string
-	Key   sessionnet.Key
-	// Context bounds the outbound tunnel; nil means context.Background.
+	Relay   string
+	PIN     string
+	Key     sessionnet.Key
 	Context context.Context
-	// Direct, when true, ALSO opens a machine-addressed listener speaking the
-	// same handshake, and publishes its address so a client that can reach this
-	// machine skips the relay (plan 38 step 4). It uses Server.Bind —
-	// the plain HTTP listener is always loopback and is never this path.
-	Direct bool
-	// Ticket returns a current relay ticket for the git service (ticket 17).
-	Ticket func() (string, error)
+	Direct  bool
+	Ticket  func() (string, error)
 }
 
-// Start listens on loopback and serves at http://127.0.0.1:<port>/<name>.
-// name defaults to "canonical.git". The plain listener is this machine's own
-// git origin only; off-box traffic arrives via Session (relay or direct).
 func (s *Server) Start(name string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -140,8 +94,6 @@ func (s *Server) Start(name string) (string, error) {
 		http.NotFound(w, r)
 	})
 
-	// Plain listener: ephemeral loopback port. Bind / BindForControl govern the
-	// direct session-network listener below, never this door.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", err
@@ -153,10 +105,6 @@ func (s *Server) Start(name string) (string, error) {
 	s.url = fmt.Sprintf("http://%s/%s", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)), name)
 	go func() { _ = srv.Serve(ln) }()
 
-	// The session-network listener serves the SAME mux. There is one git
-	// server; the session network is another way in, not another endpoint —
-	// which is what keeps a local dev loop and a cross-network session on
-	// exactly one code path.
 	if s.Session != nil {
 		if err := s.publishSessionLocked(); err != nil {
 			_ = ln.Close()
@@ -167,10 +115,6 @@ func (s *Server) Start(name string) (string, error) {
 	return s.url, nil
 }
 
-// UnpublishSession tears the session-network registration down while leaving
-// the loopback git listener up. Placement Stop must call this when the git
-// lease moves: a live-but-lease-less registration plus "first live holder wins"
-// on the relay would lock the real owner out (abuse-surface ticket 15).
 func (s *Server) UnpublishSession() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -183,9 +127,6 @@ func (s *Server) UnpublishSession() {
 	s.sessionDirect = ""
 }
 
-// PublishSession (re)joins the session network. Used when this machine takes
-// the git lease back after a stand-down — Start is a no-op once the loopback
-// listener exists, so republishing has to be its own call.
 func (s *Server) PublishSession() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -201,7 +142,6 @@ func (s *Server) PublishSession() error {
 	return s.publishSessionLocked()
 }
 
-// publishSessionLocked assumes s.mu is held and s.srv is running.
 func (s *Server) publishSessionLocked() error {
 	ctx := s.Session.Context
 	if ctx == nil {
@@ -235,17 +175,12 @@ func (s *Server) publishSessionLocked() error {
 	return nil
 }
 
-// SessionURL is the address to publish into the control plane when this server
-// is on the session network — empty otherwise. It names the session and its
-// service, never a machine, so it survives the git lease moving.
 func (s *Server) SessionURL() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.sessionURL
 }
 
-// SessionDirect is the machine address peers may dial to reach this same server
-// without the relay hop, or "" when none is published.
 func (s *Server) SessionDirect() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -274,16 +209,8 @@ func (s *Server) infoRefs(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(buf.Bytes())
 }
 
-// gitFrameBuffer is how much upload-pack output is gathered before it reaches
-// the session network. Bigger than a handful of 16 KiB records on purpose:
-// net/http's own 4 KiB connection buffer emits one short write per chunk
-// whatever we do, so a large chunk amortises that short frame across many full
-// ones. 128 KiB puts the average frame within a whisker of the 16 KiB record
-// ceiling; smaller buffers leave it near half.
 const gitFrameBuffer = 128 << 10
 
-// writerOnly hides every optimisation interface the wrapped writer has, so a
-// copy has to go through Write. See its one use, above.
 type writerOnly struct{ w io.Writer }
 
 func (o writerOnly) Write(p []byte) (int, error) { return o.w.Write(p) }
@@ -300,44 +227,17 @@ func (s *Server) service(name string) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-cache")
 		cmd := s.gitCmd(r.Context(), name, "--stateless-rpc", s.Bare)
 		cmd.Stdin = body
-		// Coalesced, not written straight through. git writes its pack in ~8 KiB
-		// pieces, and on the session network every write becomes a WebSocket
-		// FRAME — against a Durable Object's ~1,000 messages/second soft limit,
-		// which a real clone brushes at that size. Buffering here turns those
-		// pieces into full 16 KiB records; the measurement and the arithmetic
-		// are in framerate_test.go.
-		//
-		// Safe because smart-HTTP is strictly request → response: this handler
-		// is not an interactive stream, so there is nothing to deliver early and
-		// no timer to flush on. The deferred flush is the whole of the tail.
-		// writerOnly is load-bearing, not decoration: bufio.Writer.ReadFrom
-		// hands the whole copy to the destination when the destination is an
-		// io.ReaderFrom — and http.response is one — so without it os/exec's
-		// io.Copy goes straight to net/http with a 32 KiB buffer, the buffer
-		// below is never touched, and the measured frame size does not move.
-		// That is exactly what happened on the first attempt at this fix.
 		out := bufio.NewWriterSize(writerOnly{w}, gitFrameBuffer)
 		cmd.Stdout = out
 		var errBuf bytes.Buffer
 		cmd.Stderr = &errBuf
 		defer out.Flush()
 		if err := cmd.Run(); err != nil {
-			// Response may already be partially written; best-effort log.
 			_, _ = io.WriteString(os.Stderr, "gitserver "+name+": "+errBuf.String()+"\n")
 		}
 	}
 }
 
-// decodedRequestBody is the body to hand to upload-pack/receive-pack, with any
-// transport compression undone first. git's smart-HTTP client compresses a
-// request body whenever compression wins and announces it with
-// `Content-Encoding: gzip` — a decision it makes on its own, per request, based
-// on size. Piping those bytes straight into `--stateless-rpc` is not a
-// degraded fetch, it is a dead one: git reads gzip's magic number as a pkt-line
-// length and dies with `protocol error: bad line length character`, which the
-// client sees as `the remote end hung up unexpectedly`. It is invisible until a
-// session's repo grows, because a small body (a first clone: a couple of wants
-// and no haves) does not compress smaller and is sent plain.
 func decodedRequestBody(r *http.Request) (io.ReadCloser, error) {
 	if !strings.EqualFold(strings.TrimSpace(r.Header.Get("Content-Encoding")), "gzip") {
 		return r.Body, nil
@@ -349,8 +249,6 @@ func decodedRequestBody(r *http.Request) (io.ReadCloser, error) {
 	return zr, nil
 }
 
-// logs serves the current dev-server log buffer as plain text so a remote
-// error-watcher can poll it. Empty when no log source is wired.
 func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -438,7 +336,6 @@ func writeLogSSE(w http.ResponseWriter, page devserver.LogPage) {
 func (s *Server) gitCmd(ctx context.Context, args ...string) *exec.Cmd {
 	bin, err := sbGit.Bin()
 	if err != nil {
-		// Return a command that will fail predictably.
 		cmd := exec.CommandContext(ctx, "false")
 		return cmd
 	}
@@ -456,30 +353,22 @@ func pktWrite(w io.Writer, s string) {
 	fmt.Fprintf(w, "%04x%s", len(s)+4, s)
 }
 
-// URL returns the clone/push URL once Start has succeeded.
 func (s *Server) URL() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.url
 }
 
-// Close shuts down the HTTP listener.
 func (s *Server) Close(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.srv == nil {
 		return nil
 	}
-	// Held /logs streams first. Shutdown waits for active handlers to return,
-	// and a subscriber blocks until its request context is done — which never
-	// happens on a graceful shutdown. Without this, a host with one console or
-	// one off-box error-watcher attached can never close its git server.
 	if s.closing != nil {
 		close(s.closing)
 		s.closing = nil
 	}
-	// The session listener next: Shutdown waits for Serve to return, and Serve
-	// only returns once its listener's Accept errors.
 	if s.sessionLn != nil {
 		_ = s.sessionLn.Close()
 		s.sessionLn = nil

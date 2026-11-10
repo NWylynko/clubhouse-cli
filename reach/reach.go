@@ -1,6 +1,3 @@
-// Package reach probes whether this machine can reach a session's published
-// services — the same checks club monitor uses, shared so the console and
-// monitor never disagree on stage (plan 42).
 package reach
 
 import (
@@ -13,7 +10,6 @@ import (
 	"github.com/nwylynko/clubhouse-cli/sessionnet"
 )
 
-// SessionService is git or dev on the session network.
 type SessionService string
 
 const (
@@ -21,20 +17,12 @@ const (
 	ServiceDev SessionService = controlplane.EndpointDev
 )
 
-// Result is what a local probe found from here.
-//
-// Published and Reachable are separate facts on purpose. "Nobody has published
-// this yet" is a session coming up; "it is published and I cannot reach it" is
-// a problem. Collapsing them into one zero value made the console report the
-// first as the second, so a starting session read as a broken one.
 type Result struct {
 	Published bool
 	Reachable bool
-	Via       string // relay|direct path tail from sessionnet.LastPath (git only)
+	Via       string
 }
 
-// ProbeSessionService dials a session service the way a member would — through
-// Dialable for published endpoints, never the raw `club://` URL (plan 38).
 func ProbeSessionService(ctx context.Context, client *controlplane.Client, sess controlplane.Session, pin string, svc SessionService) Result {
 	if client == nil {
 		return Result{}
@@ -58,10 +46,6 @@ func ProbeSessionService(ctx context.Context, client *controlplane.Client, sess 
 	case ServiceDev:
 		url, err := client.EndpointURL(ctx, pin, controlplane.EndpointDev)
 		if err != nil || url == "" {
-			// Not published, or not resolvable from here — either way there is
-			// nothing to claim about it. The session poll reports a control plane
-			// that has stopped answering; this must not report it twice as a dev
-			// server nobody can reach.
 			return Result{}
 		}
 		return Result{Published: true, Reachable: probeHTTP(ctx, url)}
@@ -77,7 +61,6 @@ func gitInfoRefs(dial string) string {
 	return strings.TrimRight(dial, "/") + "/info/refs?service=git-upload-pack"
 }
 
-// ProbeHTTP reports whether a GET to url succeeds within the probe timeout.
 func ProbeHTTP(ctx context.Context, url string) bool {
 	return probeHTTP(ctx, url)
 }

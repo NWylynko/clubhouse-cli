@@ -10,24 +10,15 @@ import (
 	"strings"
 )
 
-// ClaimLease claims a service for this member, or renews it when this member
-// already owns it. A live lease held by someone else answers ErrLeaseHeld with
-// the owner named — the loser stands down and can say why (plan 30).
 func (c *Client) ClaimLease(ctx context.Context, pin string, req LeaseRequest) (Lease, error) {
 	lease, err := c.leaseCall(ctx, http.MethodPut, "/v1/sessions/"+pin+"/leases/"+req.Service, req)
 	if err != nil {
 		return lease, err
 	}
-	// Read-your-writes (plan 43): a claim changes the session document the
-	// stream may not have pushed yet, so Session() must not hand placement a
-	// pre-claim snapshot. The granted lease is the whole change — patch it in
-	// rather than issuing a GET, which would put the request this plan exists
-	// to remove back into the steady state.
 	c.cacheLease(pin, lease)
 	return lease, nil
 }
 
-// cacheLease folds one granted lease into the cached session document.
 func (c *Client) cacheLease(pin string, lease Lease) {
 	if lease.Service == "" {
 		return
@@ -35,16 +26,12 @@ func (c *Client) cacheLease(pin string, lease Lease) {
 	c.setCachedLease(pin, lease.Service, &lease)
 }
 
-// setCachedLease writes (or, with a nil lease, removes) one service's lease in
-// the cached document. Leases are folded rather than invalidated because they
-// are written on the hot path — placement claims and releases constantly, and a
-// cache drop there would put a GET back into the steady state for every one.
 func (c *Client) setCachedLease(pin, service string, lease *Lease) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	sess, ok := c.cache[pin]
 	if !ok {
-		return // nothing cached yet: the first frame or snapshot carries it
+		return
 	}
 	leases := make(map[string]Lease, len(sess.Leases)+1)
 	for k, v := range sess.Leases {
@@ -60,19 +47,15 @@ func (c *Client) setCachedLease(pin, service string, lease *Lease) {
 	c.cache[pin] = sess
 }
 
-// RenewLease extends a lease this member already owns. A member that has lost
-// the lease is told so instead of silently re-taking it.
 func (c *Client) RenewLease(ctx context.Context, pin string, req LeaseRequest) (Lease, error) {
 	return c.leaseCall(ctx, http.MethodPost, "/v1/sessions/"+pin+"/leases/"+req.Service+"/renew", req)
 }
 
-// HandoverLease transfers a lease without waiting for expiry. With Req.To empty
-// it expires the lease so the best-ranked member claims it next.
 func (c *Client) HandoverLease(ctx context.Context, pin string, req LeaseRequest) (Lease, error) {
 	lease, err := c.leaseCall(ctx, http.MethodPost, "/v1/sessions/"+pin+"/leases/"+req.Service+"/handover", req)
 	if err == nil {
 		if lease.Service == "" {
-			c.setCachedLease(pin, req.Service, nil) // expired for the next claimer
+			c.setCachedLease(pin, req.Service, nil)
 		} else {
 			c.cacheLease(pin, lease)
 		}
@@ -80,9 +63,6 @@ func (c *Client) HandoverLease(ctx context.Context, pin string, req LeaseRequest
 	return lease, err
 }
 
-// ReleaseLease gives a service up immediately — the "I am leaving" path.
-// The actor is the Bearer (X-Club-Member); there is no memberId query
-// parameter (abuse-surface ticket 19 / #22).
 func (c *Client) ReleaseLease(ctx context.Context, pin, service string) error {
 	_, err := c.leaseCall(ctx, http.MethodDelete,
 		"/v1/sessions/"+pin+"/leases/"+service, nil)
@@ -92,15 +72,6 @@ func (c *Client) ReleaseLease(ctx context.Context, pin, service string) error {
 	return err
 }
 
-// ReportStartFailure hands a lease back AND says why, in one request: this
-// member claimed the service, could not start it, and the next member should
-// try instead. The reason becomes a durable fact on the session (Lease
-// .StartFailure), which is what session 2lmymb had nowhere to put — 170 silent
-// claim/release pairs in eleven minutes.
-//
-// It replaces the bare ReleaseLease on that path rather than joining it: two
-// requests would leave a window where the lease is free and nothing says why,
-// and the steady-state request budget has no room for a second one.
 func (c *Client) ReportStartFailure(ctx context.Context, pin string, req LeaseRequest) error {
 	_, err := c.leaseCall(ctx, http.MethodPost,
 		"/v1/sessions/"+pin+"/leases/"+req.Service+"/start-failed", req)
@@ -110,7 +81,6 @@ func (c *Client) ReportStartFailure(ctx context.Context, pin string, req LeaseRe
 	return err
 }
 
-// Leases reads the current placement from the session snapshot.
 func (c *Client) Leases(ctx context.Context, pin string) (map[string]Lease, error) {
 	sess, err := c.Session(ctx, pin)
 	if err != nil {
@@ -119,9 +89,6 @@ func (c *Client) Leases(ctx context.Context, pin string) (map[string]Lease, erro
 	return sess.Leases, nil
 }
 
-// leaseCall is a thin sibling of do() that preserves the 409 body. do() maps
-// every 409 to ErrDemoted, which is right for endpoint writes but would throw
-// away the one thing a losing claimer needs: who holds the lease.
 func (c *Client) leaseCall(ctx context.Context, method, path string, body any) (Lease, error) {
 	var out Lease
 	var rdr io.Reader
@@ -166,20 +133,10 @@ func (c *Client) leaseCall(ctx context.Context, method, path string, body any) (
 	return out, json.Unmarshal(b, &out)
 }
 
-// trimLeaseErr strips the server-side "lease held: " prefix so wrapping does
-// not read as "lease held: lease held: …".
 func trimLeaseErr(s string) string {
 	return strings.TrimPrefix(strings.TrimSpace(s), ErrLeaseHeld.Error()+": ")
 }
 
-// ReportBoxBootFailure tells the control plane that this managed box could not
-// boot, and why, so the box record says `failed` with a reason within seconds
-// instead of `provisioning` until the provisioner's own deadline.
-//
-// Only a member whose role is `box` may send it — the caller is the container
-// the control plane minted the membership for — and it is never fatal to the
-// thing it is reporting: a box that cannot reach the control plane to say it is
-// dying is still dying, and the exit must not be held up by saying so.
 func (c *Client) ReportBoxBootFailure(ctx context.Context, pin, memberID, reason string) error {
 	if pin == "" || memberID == "" {
 		return fmt.Errorf("box boot failure needs the pin and the box's member id")
